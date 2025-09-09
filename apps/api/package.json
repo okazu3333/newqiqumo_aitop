@@ -1,0 +1,33 @@
+{
+  "name": "@survey-poc/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/router": "./src/router/index.ts",
+    "./src/router/*": "./src/router/*.ts",
+    "./client": "./src/index.client.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "biome check --write",
+    "format": "biome format --write",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trpc/server": "^11.0.0",
+    "@survey-poc/database": "workspace:*",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "zod": "^4.0.13"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.1",
+    "@types/node": "^24.0.10",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

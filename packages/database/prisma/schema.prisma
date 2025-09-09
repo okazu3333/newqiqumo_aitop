@@ -1,0 +1,157 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// アンケート
+model Survey {
+  id                     Int       @id @default(autoincrement())
+  title                  String?   // アンケートタイトル
+  purpose                String?   // 調査目的
+  targetCondition        String?   // 調査対象者条件
+  analysisCondition      String?   // 分析対象者条件
+  researchMethod         String?   // 調査手法
+  researchScale          String?   // 調査規模（予算）
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  
+  sections               Section[]
+  reviewAccess           ReviewAccess?
+}
+
+// セクション（質問グループ）
+model Section {
+  id         Int      @id @default(autoincrement())
+  surveyId   Int
+  phase      String   // "SCREENING" or "MAIN"
+  order      Int      // Survey内のphaseごとの順序
+  title      String
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  survey     Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  questions  Question[]
+  
+  @@unique([surveyId, phase, order])
+  @@index([surveyId, phase])
+}
+
+// 質問
+model Question {
+  id           Int      @id @default(autoincrement())
+  sectionId    Int
+  code         String   // 利用者定義の識別子（例: "SC1", "Q1", "Q2a"）
+  type         String   // "SA", "MA", "NU", "FA"
+  title        String
+  description  String?
+  isRequired   Boolean  @default(false)
+  order        Int
+  
+  // タイプ別の設定をJSON形式で保存
+  // MA: { multipleLimit?: number }
+  // NU: { minValue?: number, maxValue?: number, unit?: string, step?: number }
+  // FA: { maxLength?: number, minLength?: number, placeholder?: string, rows?: number }
+  config       String   @default("{}")  // SQLiteではJsonフィールドも文字列として保存
+  
+  // ロジック制御設定（文字列で保持）
+  respondentCondition String   @default("全員")        // 回答者条件
+  answerControl       String   @default("なし")        // 回答制御
+  targetCondition     String   @default("なし")        // 対象者条件
+  skipCondition       String   @default("なし")        // スキップ条件
+  displayOrder        String   @default("通常")        // カテゴリ表示順
+  jumpCondition       String   @default("なし")        // ジャンプ条件
+  
+  // 表示用の前置・後置テキスト
+  prefix       String?  // 前置テキスト（例: "￥", "@"）
+  suffix       String?  // 後置テキスト（例: "円", "%"）
+  
+  // メタデータ
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  section      Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  options      Option[] // SA/MA用の選択肢
+  threads      Thread[] // 質問に関連するスレッド
+  
+  @@unique([sectionId, code])
+  @@index([sectionId])
+  @@index([isActive])
+  @@index([order])
+}
+
+// 選択肢（SA/MA用）
+model Option {
+  id         Int      @id @default(autoincrement())
+  questionId Int
+  code       String   // 利用者定義の識別子（例: "1", "2", "99", "other"）
+  label      String
+  value      String   // 内部的な値
+  order      Int
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  @@unique([questionId, code])
+  @@index([questionId])
+  @@unique([questionId, order])
+}
+
+// スレッド（質問に対するコメントスレッド）
+model Thread {
+  id           Int        @id @default(autoincrement())
+  questionId   Int
+  x            Float      // X座標
+  y            Float      // Y座標
+  createdBy    String     // 作成者
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  isCompleted  Boolean    @default(false)
+  message      String     // スレッドの最初のメッセージ
+  type         String     // スレッドのタイプ
+  
+  question     Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reviews      Review[]   // スレッドに対する返信
+  
+  @@index([questionId])
+  @@index([isCompleted])
+}
+
+// レビュー（スレッドへの返信）
+model Review {
+  id           Int        @id @default(autoincrement())
+  threadId     Int
+  createdAt    DateTime   @default(now())
+  message      String     // 返信メッセージ
+  createdBy    String     // 作成者
+  
+  thread       Thread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  
+  @@index([threadId])
+}
+
+// レビューアクセス（期限付きURL用）
+model ReviewAccess {
+  id           Int        @id @default(autoincrement())
+  surveyId     Int
+  password     String     // パスワード（簡易的な実装のため平文保存）
+  expiresAt    DateTime   // 有効期限
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  survey       Survey     @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  
+  @@unique([surveyId])
+  @@index([surveyId])
+  @@index([expiresAt])
+}

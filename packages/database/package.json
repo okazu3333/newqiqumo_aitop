@@ -1,0 +1,33 @@
+{
+  "name": "@survey-poc/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
+    "db:reset": "rm -f prisma/dev.db prisma/dev.db-journal && prisma db push && prisma db seed",
+    "db:deploy": "rm -f prisma/deploy.db prisma/deploy.db-journal && DATABASE_URL='file:./deploy.db' prisma db push --skip-generate && DATABASE_URL='file:./deploy.db' prisma db seed",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "postinstall": "if [ \"$CI\" != \"true\" ]; then prisma generate; fi",
+    "lint": "biome check --write",
+    "format": "biome format --write",
+    "type-check": "tsc --noEmit"
+  },
+  "prisma": {
+    "seed": "bun run prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.13.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.13.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

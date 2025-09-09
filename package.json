@@ -1,0 +1,36 @@
+{
+  "name": "survey-poc-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/api",
+    "packages/*"
+  ],
+  "packageManager": "bun@1.2.2",
+  "scripts": {
+    "dev": "bun run --filter @survey-poc/web dev",
+    "dev:web": "bun run --filter @survey-poc/web dev",
+    "dev:api": "bun run --filter @survey-poc/api dev",
+    "build": "turbo build",
+    "build:web": "bun run --filter @survey-poc/web build",
+    "start": "bun run --filter @survey-poc/web start",
+    "lint": "turbo lint",
+    "format": "turbo format",
+    "type-check": "turbo type-check"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.6",
+    "concurrently": "^9.2.0",
+    "turbo": "^2.5.5",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.2.3"
+  },
+  "trustedDependencies": [
+    "@survey-poc/database",
+    "@survey-poc/web",
+    "core-js-pure"
+  ]
+}

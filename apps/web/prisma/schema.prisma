@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("PRISMA_DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+model Survey {
+  id                Int       @id @default(autoincrement())
+  title             String?
+  purpose           String?
+  targetCondition   String?
+  analysisCondition String?
+  researchMethod    String?
+  researchScale     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  sections   Section[]
+  reviewAccess ReviewAccess?
+}
+
+model Section {
+  id        Int      @id @default(autoincrement())
+  surveyId  Int
+  phase     String
+  order     Int
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  survey    Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@unique([surveyId, phase, order])
+  @@index([surveyId, phase])
+}
+
+model Question {
+  id                  Int      @id @default(autoincrement())
+  sectionId           Int
+  code                String
+  type                String
+  title               String
+  description         String?
+  isRequired          Boolean  @default(false)
+  order               Int
+  config              String   @default("{}")
+  respondentCondition String   @default("全員")
+  answerControl       String   @default("なし")
+  targetCondition     String   @default("なし")
+  skipCondition       String   @default("なし")
+  displayOrder        String   @default("通常")
+  jumpCondition       String   @default("なし")
+  prefix              String?
+  suffix              String?
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  section  Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  options  Option[]
+  threads  Thread[]
+
+  @@unique([sectionId, code])
+  @@index([sectionId])
+  @@index([isActive])
+  @@index([order])
+}
+
+model Option {
+  id         Int      @id @default(autoincrement())
+  questionId Int
+  code       String
+  label      String
+  value      String
+  order      Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, code])
+  @@index([questionId])
+  @@unique([questionId, order])
+}
+
+model Thread {
+  id          Int      @id @default(autoincrement())
+  questionId  Int
+  x           Float
+  y           Float
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isCompleted Boolean  @default(false)
+  message     String
+  type        String
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reviews  Review[]
+
+  @@index([questionId])
+  @@index([isCompleted])
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  threadId  Int
+  createdAt DateTime @default(now())
+  message   String
+  createdBy String
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+}
+
+model ReviewAccess {
+  id        Int      @id @default(autoincrement())
+  surveyId  Int
+  password  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@unique([surveyId])
+  @@index([surveyId])
+  @@index([expiresAt])
+} 

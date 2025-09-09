@@ -1,0 +1,1 @@
+export { default } from "../(auth)/surveys/assistant/page"; 
