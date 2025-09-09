@@ -10,6 +10,7 @@ import { SURVEY_ASSISTANT_SYSTEM_PROMPT } from '@/components/survey-assistant/pr
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Survey {
   id: string;
@@ -64,6 +65,8 @@ export default function SurveyAssistantPage() {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const hasConversation = messages.some((m) => m.role !== 'system');
   const isChatVisible = inputFocused || inputMessage.trim().length > 0 || hasConversation;
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
     if (isChatActive) {
@@ -216,6 +219,24 @@ export default function SurveyAssistantPage() {
     }
   };
 
+  const handleDropFiles = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) setAttachedFiles(prev => [...prev, ...files]);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
   const removeFile = (index: number) => {
     setAttachedFiles(prev => prev.filter((_, i) => i !== index));
   };
@@ -283,24 +304,54 @@ export default function SurveyAssistantPage() {
 
             <CardContent className="p-0">
               {/* Messages Area */}
-              <div className={`${isChatVisible ? 'py-4 h-[360px] max-h-[60vh]' : 'py-0 h-0 max-h-0'} px-6 overflow-y-auto space-y-3 transition-all duration-300`}>
+              <div className={`${(isChatVisible || showWelcome) ? 'py-4 h-[360px] max-h-[60vh]' : 'py-0 h-0 max-h-0'} px-6 overflow-y-auto space-y-3 transition-all duration-300`}>
+                {!hasConversation && showWelcome && (
+                  <div className="flex justify-start">
+                    <div className="bg-background text-foreground border rounded-2xl px-4 py-3 text-sm max-w-[70%] shadow-sm">
+                      <p className="mb-2">ようこそ。以下のいずれかから始めてください。</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>テーマ（例: 従業員満足度調査）</li>
+                        <li>対象（例: 既存顧客 / 全社員）</li>
+                        <li>設問数（例: 5問程度）</li>
+                      </ul>
+                      <div className="mt-2 text-xs text-muted-foreground">テンプレートから始める場合は下のテンプレート一覧をご利用ください。</div>
+                      <div className="mt-3 flex gap-2">
+                        {[
+                          '従業員満足度調査で本調査を提案して',
+                          'ブランド認知度の事前調査を3問で',
+                        ].map((ex, i) => (
+                          <Button key={i} size="sm" variant="secondary" onClick={() => { setInputMessage(ex); setShowWelcome(false); }}>
+                            {ex}
+                          </Button>
+                        ))}
+                        <Button size="sm" variant="ghost" onClick={() => { setShowWelcome(false); }}>閉じる</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {messages.filter(m => m.role !== 'system').map((m) => (
-                  <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`${m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground border'} rounded-2xl px-4 py-2 text-sm max-w-[70%] whitespace-pre-wrap shadow-sm`}>{m.content}</div>
+                  <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`} aria-live={m.role === 'assistant' ? 'polite' : undefined}>
+                    <div className={`${m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground border'} rounded-2xl px-4 py-2 text-sm max-w-[70%] whitespace-pre-wrap shadow-sm`}>
+                      {m.content}
+                    </div>
                   </div>
                 ))}
                 {isTyping && (
-                  <div className="flex justify-start">
-                    <div className="bg-muted rounded-2xl px-4 py-2 text-sm text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" /> 入力中...
-                    </div>
+                  <div className="flex justify-start gap-2 items-center">
+                    <Skeleton className="h-10 w-40" />
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                   </div>
                 )}
                 <div ref={messagesEndRef} />
               </div>
 
               {/* Input Area */}
-              <div className="px-6 pb-5 pt-3 border-t">
+              <div
+                className={`px-6 pb-5 pt-3 border-t ${isDragOver ? 'bg-accent/20' : ''} sticky bottom-0 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/75`}
+                onDrop={handleDropFiles}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+              >
                 {attachedFiles.length > 0 && (
                   <div className="mb-2 space-y-2">
                     <p className="text-sm font-medium">添付ファイル</p>
@@ -314,6 +365,18 @@ export default function SurveyAssistantPage() {
                     ))}
                   </div>
                 )}
+                {/* Quick chips */}
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {[
+                    { label: 'テーマ', value: 'テーマ: ' },
+                    { label: '対象', value: '対象: ' },
+                    { label: '設問数', value: '設問数: ' },
+                  ].map((chip) => (
+                    <Button key={chip.label} variant="secondary" size="sm" onClick={() => setInputMessage((v) => (v ? v + `\n${chip.value}` : chip.value))}>
+                      {chip.label}
+                    </Button>
+                  ))}
+                </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <Textarea
@@ -321,11 +384,15 @@ export default function SurveyAssistantPage() {
                       value={inputMessage}
                       onChange={(e) => setInputMessage(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      onFocus={() => setInputFocused(true)}
+                      onFocus={() => {
+                        setInputFocused(true);
+                        setShowWelcome(true);
+                      }}
                       onBlur={() => setInputFocused(false)}
                       placeholder="知りたいこと・調査目的を入力してください..."
                       rows={3}
                     />
+                    <div className="mt-1 text-xs text-muted-foreground">Enterで送信 / Shift+Enterで改行 ・ ファイルをドロップして添付</div>
                   </div>
                   <div className="flex flex-col gap-2">
                     <input
@@ -493,7 +560,19 @@ export default function SurveyAssistantPage() {
             description: previewData.category,
           });
           setPreviewOpen(false);
-          handleConfirmProceed();
+          // Store draft then go via redirect page to confirm
+          try {
+            const draft = {
+              title: previewData.title,
+              type: previewData.mode ?? 'main',
+              audience: previewData.audience ?? undefined,
+              questions: (previewData.questions ?? []).map((q: any, idx: number) => ({ id: `Q${idx + 1}`, text: typeof q === 'string' ? q : q.text })),
+            };
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('assistant_draft', JSON.stringify(draft));
+            }
+          } catch {}
+          router.push('/assistant/redirect?next=/assistant/confirm');
         }}
         onEdit={() => {
           if (!previewData) return;

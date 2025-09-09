@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { X, FileText, User, CircleDot, CheckSquare, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useEffect, useRef } from "react";
 
 export type PreviewQuestion = {
   id?: string;
@@ -34,20 +35,53 @@ type TemplatePreviewModalProps = {
 };
 
 export default function TemplatePreviewModal({ open, onOpenChange, data, onConfirm, onEdit }: TemplatePreviewModalProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onOpenChange(false);
+      } else if (e.key === 'Tab') {
+        const root = containerRef.current;
+        if (!root) return;
+        const focusables = root.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        } else if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    // Focus first actionable on open
+    requestAnimationFrame(() => {
+      containerRef.current?.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus();
+    });
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onOpenChange]);
   if (!open || !data) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
-      <div className="relative bg-white rounded-lg w-full max-w-6xl h-[80vh] mx-4 overflow-hidden flex shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="template-preview-title">
+      <div className="absolute inset-0 bg-black/50" onClick={() => onOpenChange(false)} aria-hidden="true" />
+      <div ref={containerRef} className="relative bg-white rounded-lg w-full max-w-6xl h-[80vh] mx-4 overflow-hidden flex shadow-xl">
         {/* Left Sidebar */}
         <div className="w-80 bg-gray-50 border-r border-gray-200 p-6 overflow-y-auto">
           {/* Header */}
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <FileText className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <FileText className="h-5 w-5 text-primary" />
             </div>
-            <h3 className="font-semibold text-gray-900">アンケート情報</h3>
+            <h3 id="template-preview-title" className="font-semibold text-gray-900">アンケート情報</h3>
           </div>
 
           {/* Template Title */}
@@ -66,12 +100,12 @@ export default function TemplatePreviewModal({ open, onOpenChange, data, onConfi
           <div className="grid grid-cols-2 gap-3 mb-6">
             <div className="py-3 px-3 bg-white rounded-lg border border-gray-200">
               <p className="text-xs text-gray-500">設問数</p>
-              <p className="text-sm font-medium text-blue-600">{data.questionCount}問</p>
+              <p className="text-sm font-medium text-primary">{data.questionCount}問</p>
             </div>
             <div className="py-3 px-3 bg-white rounded-lg border border-gray-200">
               <p className="text-xs text-gray-500">対象者</p>
               <div className="flex items-center gap-2 text-sm text-gray-800">
-                <User className="h-4 w-4 text-gray-600" />
+                <User className="h-4 w-4 text-muted-foreground" />
                 <span>{data.audience}</span>
               </div>
             </div>
@@ -109,7 +143,7 @@ export default function TemplatePreviewModal({ open, onOpenChange, data, onConfi
               </div>
               <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-900">合計</span>
-                <span className="text-sm font-semibold text-blue-600">{data.questionCount}問</span>
+                <span className="text-sm font-semibold text-primary">{data.questionCount}問</span>
               </div>
             </div>
           )}
@@ -132,7 +166,7 @@ export default function TemplatePreviewModal({ open, onOpenChange, data, onConfi
           <div className="flex-1 overflow-y-auto p-6">
             <div className="max-w-2xl mx-auto">
               {/* Survey Header */}
-              <div className="text-center mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="text-center mb-6 p-4 bg-primary/10 rounded-lg border border-primary/20">
                 <p className="text-sm text-gray-800">{data.title}</p>
               </div>
 
@@ -158,7 +192,7 @@ export default function TemplatePreviewModal({ open, onOpenChange, data, onConfi
           </div>
 
           {/* Footer Actions */}
-          <div className="p-4 border-t border-gray-200 flex items-center justify-end gap-2">
+          <div className="p-4 border-t border-gray-200 flex items-center justify-end gap-2 sticky bottom-0 bg-white">
             <Button variant="outline" onClick={onEdit}>このテンプレートを利用する</Button>
             <Button onClick={onConfirm}>QIQUMOで作成する</Button>
           </div>
@@ -247,7 +281,7 @@ function TypeBadge({ type }: { type: PreviewQuestion['type'] }) {
   const info = (() => {
     switch (type) {
       case 'single':
-        return { label: '単一選択', icon: <CircleDot className="w-3.5 h-3.5" />, cls: 'text-blue-700 bg-blue-50 border-blue-200' };
+        return { label: '単一選択', icon: <CircleDot className="w-3.5 h-3.5" />, cls: 'text-primary bg-primary/10 border-primary/20' };
       case 'multiple':
         return { label: '複数選択', icon: <CheckSquare className="w-3.5 h-3.5" />, cls: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
       case 'scale':

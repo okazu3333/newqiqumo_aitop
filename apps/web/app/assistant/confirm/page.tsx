@@ -42,40 +42,34 @@ export default function AssistantConfirmPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header Navigation */}
+      {/* Stepper Header */}
       <div className="bg-white border-b">
-        <div className="flex items-center">
-          <div className="flex">
-            <ChevronLeft className="w-6 h-6 text-gray-400 my-auto ml-2" />
-            <div className="bg-primary text-primary-foreground px-6 py-3 flex items-center gap-2 relative">
-              <span className="text-sm">✓</span>
-              <span>アンケート作成</span>
-              <div className="absolute right-0 top-0 w-0 h-0 border-l-[20px] border-l-primary border-t-[24px] border-t-transparent border-b-[24px] border-b-transparent"></div>
-            </div>
-            <div className="bg-gray-600 text-white px-6 py-3 flex items-center gap-2 relative">
-              <span className="text-sm">📋</span>
-              <span>アンケート配信</span>
-              <div className="absolute right-0 top-0 w-0 h-0 border-l-[20px] border-l-gray-600 border-t-[24px] border-t-transparent border-b-[24px] border-b-transparent"></div>
-            </div>
-            <div className="bg-gray-800 text-white px-6 py-3 flex items-center gap-2">
-              <span className="text-sm">📊</span>
-              <span>ダッシュボード</span>
-            </div>
-            <ChevronRight className="w-6 h-6 text-gray-400 my-auto mr-2" />
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-6">
+            {[{label:'作成', current:false}, {label:'確認', current:true}, {label:'配信', current:false}].map((s, i) => (
+              <div key={s.label} className="flex items-center gap-3">
+                <div className={`h-7 w-7 rounded-full flex items-center justify-center text-sm font-medium border ${s.current ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-foreground'}`}>{i+1}</div>
+                <span className={`text-sm ${s.current ? 'font-medium' : 'text-muted-foreground'}`}>{s.label}</span>
+                {i < 2 && <div className="w-10 h-px bg-border mx-1" />}
+              </div>
+            ))}
+            <div className="ml-auto text-sm text-muted-foreground">{data.type === 'main' ? '本調査' : '事前調査'} / {data.audience ?? '対象者 未設定'}</div>
           </div>
-
-          {/* Right side info */}
-          <div className="ml-auto flex items-center gap-2 px-4">
-            <span className="text-sm text-gray-600">{data.type === "main" ? "本調査" : "事前調査"} / {data.audience ?? "対象者 未設定"}</span>
+          <nav className="mt-2 text-xs text-muted-foreground">
+            <ol className="flex items-center gap-1">
+              <li><a href="/surveys" className="hover:underline">surveys</a></li>
+              <li>/</li>
+              <li><a href="/assistant" className="hover:underline">assistant</a></li>
+              <li>/</li>
+              <li aria-current="page" className="text-foreground">confirm</li>
+            </ol>
+          </nav>
+          <div className="mt-3 text-xs text-muted-foreground flex gap-4">
+            <span>アンケート種別: {data.type === 'main' ? '本調査' : '事前調査'}</span>
+            <span>タイトル: {data.title}</span>
+            <span>対象者: {data.audience ?? '未設定'}</span>
+            <span className="bg-muted px-2 py-0.5 rounded">確認</span>
           </div>
-        </div>
-
-        {/* Survey Info Bar */}
-        <div className="px-4 py-2 bg-gray-100 flex items-center gap-4 text-sm">
-          <span>アンケート種別:{data.type === "main" ? "本調査" : "事前調査"}</span>
-          <span>タイトル:{data.title}</span>
-          <span>対象者:{data.audience ?? "未設定"}</span>
-          <span className="bg-gray-300 px-2 py-1 rounded text-xs">確認</span>
         </div>
       </div>
 
