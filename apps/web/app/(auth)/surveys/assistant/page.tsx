@@ -529,7 +529,7 @@ export default function SurveyAssistantPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F9F9F9]">
+    <div className="min-h-screen bg-background">
       <div className="p-6 max-w-7xl mx-auto">
         <div className="space-y-6">
           {/* Starter Tiles removed as requested */}
@@ -548,7 +548,7 @@ export default function SurveyAssistantPage() {
             <CardContent className="p-0">
               {/* Messages Area */}
               <div className={`${(isChatVisible || showWelcome) ? 'py-4 h-[360px] max-h-[60vh]' : 'py-0 h-0 max-h-0'} px-6 overflow-y-auto space-y-3 transition-all duration-300`}>
-                {!hasConversation && showWelcome && (
+                {showWelcome && (
                   <div className="flex justify-start">
                     <div className="bg-background text-foreground border rounded-2xl px-4 py-3 text-sm max-w-[70%] shadow-sm">
                       <p className="mb-2">以下の項目を入力し、アンケートを作成してください。</p>
@@ -610,7 +610,7 @@ export default function SurveyAssistantPage() {
 
               {/* Input Area */}
               <div
-                className={`px-6 pb-5 pt-3 border-t ${isDragOver ? 'bg-accent/20' : ''} sticky bottom-0 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/75`}
+                className={`px-6 pb-5 pt-3 border-t ${isDragOver ? 'bg-accent/20' : ''} sticky bottom-0 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/75 pb-[env(safe-area-inset-bottom)]`}
                 onDrop={handleDropFiles}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
