@@ -551,11 +551,12 @@ export default function SurveyAssistantPage() {
                 {!hasConversation && showWelcome && (
                   <div className="flex justify-start">
                     <div className="bg-background text-foreground border rounded-2xl px-4 py-3 text-sm max-w-[70%] shadow-sm">
-                      <p className="mb-2">ようこそ。以下のいずれかから始めてください。</p>
+                      <p className="mb-2">以下の項目を入力し、アンケートを作成してください。</p>
+                      <p className="text-xs text-muted-foreground mb-2">入力がないものは、推定項目としてアンケートを作成します。</p>
                       <ul className="list-disc pl-5 space-y-1">
-                        <li>テーマ（例: 従業員満足度調査）</li>
-                        <li>対象（例: 既存顧客 / 全社員）</li>
-                        <li>設問数（例: 5問程度）</li>
+                        <li>タイトル（例：製品利用度調査）</li>
+                        <li>調査目的（例：商品改良にあたり、現状の利用度調査をしたい）</li>
+                        <li>設問条件（例：5問程度で作成）</li>
                       </ul>
                       <div className="mt-2 text-xs text-muted-foreground">テンプレートから始める場合は下のテンプレート一覧をご利用ください。</div>
                       <div className="mt-3 flex gap-2">
