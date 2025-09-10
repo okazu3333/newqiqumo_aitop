@@ -173,16 +173,7 @@ export default function TemplatePreviewModal({ open, onOpenChange, data, onConfi
               {/* Questions */}
               <div className="space-y-4">
                 {data.questions.map((q, idx) => (
-                  <div key={idx} className="bg-white rounded-lg border border-gray-200">
-                    <div className="p-4">
-                      <p className="text-sm text-gray-900 flex items-center gap-2 flex-wrap">
-                        <span className="text-gray-500 mr-1">Q{idx + 1}.</span>
-                        <TypeBadge type={q.type} />
-                        {q.category && <CategoryBadge label={q.category} />}
-                        <span className="whitespace-pre-wrap break-words">{q.text}</span>
-                      </p>
-                    </div>
-                  </div>
+                  <QuestionItem key={idx} index={idx} question={q} />
                 ))}
                 {data.questions.length === 0 && (
                   <div className="p-4 text-xs text-gray-500">設問がありません</div>
@@ -193,8 +184,8 @@ export default function TemplatePreviewModal({ open, onOpenChange, data, onConfi
 
           {/* Footer Actions */}
           <div className="p-4 border-t border-gray-200 flex items-center justify-end gap-2 sticky bottom-0 bg-white">
-            <Button variant="outline" onClick={onEdit}>このテンプレートを利用する</Button>
-            <Button onClick={onConfirm}>QIQUMOで作成する</Button>
+            <Button variant="outline" onClick={onEdit}>チャットでカスタマイズ</Button>
+            <Button onClick={onConfirm}>この内容で、QIQUMOで作成する</Button>
           </div>
         </div>
       </div>

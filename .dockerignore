@@ -1,32 +1,23 @@
-node_modules
-.next
-.turbo
+# VCS
 .git
 .gitignore
-README.md
-Dockerfile
-.dockerignore
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
 
-# local env files
-.env*.local
-.env
+# Node/Bun artifacts
+node_modules
+**/node_modules
+bun.lockb
+npm-debug.log
+.yarn/cache
 
-# vercel
-.vercel
+# Next.js / build artifacts
+apps/web/.next
+apps/web/out
+apps/web/.vercel
+**/.turbo
+**/dist
+**/.cache
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# OS generated files
+# OS/editor
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db 
+*.swp
+*.swo 

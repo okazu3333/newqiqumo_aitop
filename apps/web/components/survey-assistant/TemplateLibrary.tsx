@@ -7,7 +7,7 @@ interface ScrollState {
   scrollLeft: number;
 }
 
-interface Template {
+export interface Template {
   id: string;
   title: string;
   description: string;
@@ -207,6 +207,11 @@ const templateSegments = [
     ]
   }
 ];
+
+export const listAllTemplates = (): Template[] =>
+  templateSegments.flatMap((segment) =>
+    segment.templates.map((t) => ({ ...t, category: segment.title })),
+  );
 
 export default function TemplateLibrary({ onSelectTemplate }: TemplateLibraryProps) {
   const [currentSlides, setCurrentSlides] = useState<Record<string, number>>({});
