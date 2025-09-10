@@ -5,7 +5,7 @@
 # Node/Bun artifacts
 node_modules
 **/node_modules
-bun.lockb
+# bun.lockb should be included for reproducible installs
 npm-debug.log
 .yarn/cache
 
