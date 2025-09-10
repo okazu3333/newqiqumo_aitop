@@ -628,18 +628,6 @@ export default function SurveyAssistantPage() {
                     ))}
                   </div>
                 )}
-                {/* Quick chips */}
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {[
-                    { label: 'テーマ', value: 'テーマ: ' },
-                    { label: '対象', value: '対象: ' },
-                    { label: '設問数', value: '設問数: ' },
-                  ].map((chip) => (
-                    <Button key={chip.label} variant="secondary" size="sm" onClick={() => setInputMessage((v) => (v ? v + `\n${chip.value}` : chip.value))}>
-                      {chip.label}
-                    </Button>
-                  ))}
-                </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <Textarea
