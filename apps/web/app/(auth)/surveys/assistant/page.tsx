@@ -11,8 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 import { listAllTemplates } from '@/components/survey-assistant/TemplateLibrary';
 
@@ -44,16 +42,12 @@ export default function SurveyAssistantPage() {
   const router = useRouter();
   const [inputMessage, setInputMessage] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null);
-  const [selectedRuleModel, setSelectedRuleModel] = useState<string | null>(null);
   const [referenceSurvey, setReferenceSurvey] = useState<Survey | null>(null);
-  const [selectedRuleModelName, setSelectedRuleModelName] = useState<string | null>(null);
-  const [searchKeywords, setSearchKeywords] = useState<string[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([{ id: 'sys', role: 'system', content: SURVEY_ASSISTANT_SYSTEM_PROMPT }]);
   const [collected, setCollected] = useState<ChatCollected>({});
 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [generatedQuestions, setGeneratedQuestions] = useState<string[]>([]);
+  const [generatedQuestions] = useState<string[]>([]);
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState<TemplatePreview | null>(null);
@@ -306,7 +300,7 @@ export default function SurveyAssistantPage() {
         const aiMsg: ChatMessage = { id: `a-${Date.now()}`, role: 'assistant', content: assistantText };
         setMessages(prev => [...prev, aiMsg]);
         // Map to TemplatePreviewModal format
-        const previewQuestions = survey.questions.map((q, i) => {
+        const previewQuestions = survey.questions.map((q) => {
           const base: any = { text: q.text };
           if (q.type === 'single_choice') return { ...base, type: 'single', options: q.options };
           if (q.type === 'multiple_choice') return { ...base, type: 'multiple', options: q.options };

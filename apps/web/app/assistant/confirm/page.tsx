@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Calendar, CheckSquare, Menu, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, CheckSquare, Menu } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 type Draft = {

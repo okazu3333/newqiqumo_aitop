@@ -219,23 +219,19 @@ export default function TemplateLibrary({ onSelectTemplate }: TemplateLibraryPro
 
   const getSlideIndex = (segmentId: string) => currentSlides[segmentId] || 0;
 
-  const nextSlide = (segmentId: string, maxIndex: number) => {
+  const nextSlide = (segmentId: string) => {
     const container = document.getElementById(`slider-${segmentId}`);
     if (container) {
       const cardWidth = 320; // Card width + gap
-      const currentScroll = container.scrollLeft;
-      const nextScroll = currentScroll + cardWidth * 3; // Move by 3 cards
-      container.scrollTo({ left: nextScroll, behavior: 'smooth' });
+      container.scrollBy({ left: cardWidth, behavior: 'smooth' });
     }
   };
 
-  const prevSlide = (segmentId: string, maxIndex: number) => {
+  const prevSlide = (segmentId: string) => {
     const container = document.getElementById(`slider-${segmentId}`);
     if (container) {
       const cardWidth = 320; // Card width + gap
-      const currentScroll = container.scrollLeft;
-      const prevScroll = Math.max(0, currentScroll - cardWidth * 3); // Move by 3 cards
-      container.scrollTo({ left: prevScroll, behavior: 'smooth' });
+      container.scrollBy({ left: -cardWidth, behavior: 'smooth' });
     }
   };
 
@@ -280,23 +276,7 @@ export default function TemplateLibrary({ onSelectTemplate }: TemplateLibraryPro
     }));
   };
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'basic': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'intermediate': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'advanced': return 'bg-rose-100 text-rose-700 border-rose-200';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
-    }
-  };
-
-  const getDifficultyLabel = (difficulty: string) => {
-    switch (difficulty) {
-      case 'basic': return '基本';
-      case 'intermediate': return '中級';
-      case 'advanced': return '上級';
-      default: return difficulty;
-    }
-  };
+  // removed unused helpers
 
   return (
     <div className="space-y-12">
@@ -316,7 +296,6 @@ export default function TemplateLibrary({ onSelectTemplate }: TemplateLibraryPro
           const totalSlides = Math.ceil(segment.templates.length / templatesPerSlide);
           const startIndex = currentIndex * templatesPerSlide;
           const endIndex = Math.min(startIndex + templatesPerSlide, segment.templates.length);
-          const visibleTemplates = segment.templates.slice(startIndex, endIndex);
           const IconComponent = segment.icon;
 
           return (
@@ -333,13 +312,13 @@ export default function TemplateLibrary({ onSelectTemplate }: TemplateLibraryPro
               {totalSlides > 1 && (
                 <>
                   <button
-                    onClick={() => prevSlide(segment.id, totalSlides)}
+                    onClick={() => prevSlide(segment.id)}
                     className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white rounded-lg shadow-md hover:shadow-lg border border-gray-200 hover:border-blue-300 transition-all group"
                   >
                     <ChevronLeft className="h-4 w-4 text-gray-600 group-hover:text-blue-600" />
                   </button>
                   <button
-                    onClick={() => nextSlide(segment.id, totalSlides)}
+                    onClick={() => nextSlide(segment.id)}
                     className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white rounded-lg shadow-md hover:shadow-lg border border-gray-200 hover:border-blue-300 transition-all group"
                   >
                     <ChevronRight className="h-4 w-4 text-gray-600 group-hover:text-blue-600" />
@@ -362,10 +341,10 @@ export default function TemplateLibrary({ onSelectTemplate }: TemplateLibraryPro
                   onMouseLeave={() => handleMouseUp(segment.id)}
                   onScroll={(e) => handleScroll(e, segment.id)}
                 >
-                  {segment.templates.map((template, index) => (
+                  {segment.templates.slice(startIndex, endIndex).map((template) => (
                     <div
                       key={template.id}
-                      onClick={(e) => {
+                      onClick={() => {
                         if (!scrollStates[segment.id]?.isDragging) {
                           onSelectTemplate({ ...template, category: segment.title });
                         }

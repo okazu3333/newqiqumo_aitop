@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function AssistantRedirectPage() {
+function RedirectInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [seconds, setSeconds] = useState(2);
@@ -38,5 +38,13 @@ export default function AssistantRedirectPage() {
         </Button>
       </div>
     </main>
+  );
+}
+
+export default function AssistantRedirectPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen flex items-center justify-center p-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></main>}>
+      <RedirectInner />
+    </Suspense>
   );
 } 

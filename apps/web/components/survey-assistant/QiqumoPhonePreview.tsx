@@ -18,7 +18,7 @@ export type QiqumoPhonePreviewProps = {
   choices: Choice[];
 };
 
-export default function QiqumoPhonePreview({ open, onOpenChange, questionNo = "Q1", title, required = true, description, type = "SA", choices }: QiqumoPhonePreviewProps) {
+export default function QiqumoPhonePreview({ open, onOpenChange, questionNo = "Q1", title, required = true, description, choices }: QiqumoPhonePreviewProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[420px] p-0 overflow-hidden border-0 bg-transparent">
