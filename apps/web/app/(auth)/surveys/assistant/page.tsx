@@ -144,7 +144,7 @@ export default function SurveyAssistantPage() {
   }, [tplSearch, tplCategory, tplMethod]);
 
   // Paginate template results (12 per page)
-  const tplPageSize = 9;
+  const tplPageSize = 6;
   const tplTotalPages = Math.max(1, Math.ceil(tplFiltered.length / tplPageSize));
   useEffect(() => {
     setTplPage((p) => Math.min(Math.max(1, p), tplTotalPages));
@@ -212,23 +212,69 @@ export default function SurveyAssistantPage() {
 
     const deriveIntentFromInput = (text: string) => {
       const intent: Partial<ChatCollected> = {};
-      // Theme heuristics
-      if (/ES|従業員満足/.test(text)) intent.theme = '従業員満足度（ES）調査';
-      else if (/CS|顧客満足/.test(text)) intent.theme = '顧客満足度（CS）調査';
-      else if (/NPS/i.test(text)) intent.theme = 'NPS調査';
-      else if (/ブランド認知|認知度/.test(text)) intent.theme = 'ブランド認知度調査';
-      // Mode heuristics
-      if (/screening|対象をしぼる/.test(text)) intent.mode = 'screening';
-      else if (/main|じっくり|本調査/.test(text)) intent.mode = 'main';
-      // Count
-      const m = text.match(/(\d+)\s*問/);
-      if (m) intent.count = Math.max(1, Math.min(20, parseInt(m[1], 10)));
-      // Audience (very simple keywords)
-      if (/従業員|社員|ES/.test(text)) intent.audience = '従業員';
-      else if (/顧客|ユーザー|会員/.test(text)) intent.audience = '既存顧客';
-      // Needs (extract phrase around 〜したい/知りたい)
-      const needMatch = text.match(/(.{0,12})(したい|知りたい)/);
-      if (needMatch) intent.needs = needMatch[0].replace(/(したい|知りたい)/, '').trim() || undefined;
+
+      // 1) Structured key-value parsing (Japanese labels)
+      // Accept lines like: テーマ: XXX / 手法: 本調査|事前調査 / 設問数: 5問 / 対象者: 既存顧客|従業員|一般対象者 / 目的: YYY
+      try {
+        const kvPairs: Record<string, string> = {};
+        for (const rawLine of text.split(/\n+/)) {
+          const line = rawLine.trim();
+          if (!line) continue;
+          const m = line.match(/^([^:：\s]+)\s*[:：]\s*(.+)$/);
+          if (m) {
+            const key = m[1]?.trim();
+            const value = m[2]?.trim();
+            if (key && value) kvPairs[key] = value;
+          }
+        }
+        // Map to intent
+        if (kvPairs['テーマ'] || kvPairs['タイトル']) {
+          intent.theme = (kvPairs['テーマ'] ?? kvPairs['タイトル']) as string;
+        }
+        if (kvPairs['手法']) {
+          const v = kvPairs['手法'];
+          if (/本調査|main/i.test(v)) intent.mode = 'main';
+          else if (/事前調査|screening|対象.*絞/i.test(v)) intent.mode = 'screening';
+        }
+        if (kvPairs['設問数']) {
+          const n = kvPairs['設問数'].match(/(\d+)/);
+          if (n) intent.count = Math.max(1, Math.min(20, parseInt(n[1]!, 10)));
+        }
+        if (kvPairs['対象者']) {
+          const v = kvPairs['対象者'];
+          if (/従業員|社員|ES/.test(v)) intent.audience = '従業員';
+          else if (/顧客|ユーザー|会員|CS/.test(v)) intent.audience = '既存顧客';
+          else if (/一般|消費者/.test(v)) intent.audience = '一般対象者';
+        }
+        if (kvPairs['目的']) {
+          intent.needs = kvPairs['目的'];
+        }
+      } catch {}
+
+      // 2) Heuristics (fallbacks)
+      if (!intent.theme) {
+        if (/ES|従業員満足/.test(text)) intent.theme = '従業員満足度（ES）調査';
+        else if (/CS|顧客満足/.test(text)) intent.theme = '顧客満足度（CS）調査';
+        else if (/NPS/i.test(text)) intent.theme = 'NPS調査';
+        else if (/ブランド認知|認知度/.test(text)) intent.theme = 'ブランド認知度調査';
+      }
+      if (!intent.mode) {
+        if (/screening|対象をしぼる|事前調査/.test(text)) intent.mode = 'screening';
+        else if (/main|じっくり|本調査/.test(text)) intent.mode = 'main';
+      }
+      if (!intent.count) {
+        const m = text.match(/(\d+)\s*問/);
+        if (m) intent.count = Math.max(1, Math.min(20, parseInt(m[1]!, 10)));
+      }
+      if (!intent.audience) {
+        if (/従業員|社員|ES/.test(text)) intent.audience = '従業員';
+        else if (/顧客|ユーザー|会員/.test(text)) intent.audience = '既存顧客';
+        else if (/一般|消費者/.test(text)) intent.audience = '一般対象者';
+      }
+      if (!intent.needs) {
+        const needMatch = text.match(/(.{0,12})(したい|知りたい)/);
+        if (needMatch) intent.needs = needMatch[0].replace(/(したい|知りたい)/, '').trim() || undefined;
+      }
       // Do not default here; ask later or use safe defaults when generating
       return intent;
     };
@@ -357,6 +403,30 @@ export default function SurveyAssistantPage() {
 
   const removeFile = (index: number) => {
     setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Auto-resize textarea to fit content (capped by CSS max-height)
+  const autoResizeTextarea = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  };
+
+  useEffect(() => {
+    autoResizeTextarea(inputRef.current);
+  }, [inputMessage]);
+
+  // Insert prompt into input without sending, focus input, and close modal if open
+  const insertPromptToInput = (text: string) => {
+    setSeeAllOpen(false);
+    setShowWelcome(false);
+    setInputMessage(text);
+    setInputFocused(true);
+    setTimeout(() => {
+      chatCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      inputRef.current?.focus();
+      autoResizeTextarea(inputRef.current);
+    }, 0);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -502,16 +572,10 @@ export default function SurveyAssistantPage() {
               setPreviewOpen(true);
   };
 
-  const recentTemplates: { id: string; title: string; description: string; category?: string }[] = [
-    { id: 'customer-satisfaction', title: '顧客満足度（CS調査）', description: '総合満足度／各項目評価／改善要望', category: '満足度・評価調査' },
-    { id: 'product-awareness', title: '商品認知度調査', description: '認知率／想起率／認知経路の把握', category: '認知・認識調査' },
-    { id: 'purchase-behavior', title: '購買行動調査', description: '購入場所と頻度／重視点／価格感度', category: '利用実態・行動調査' },
-    { id: 'concept-evaluation', title: '新商品コンセプト評価', description: '魅力度／購入意向／改善余地', category: '新商品・サービス調査' },
-  ];
 
-  const spotlightTemplates: { id: string; title: string; description: string; category?: string }[] = [
-    { id: 'concept-evaluation', title: '新商品コンセプト評価', description: '魅力度／購入意向／改善余地', category: '新商品・サービス調査' },
-    { id: 'employee-satisfaction', title: '従業員満足度（ES調査）', description: '制度満足／職場環境／エンゲージメント', category: '満足度・評価調査' },
+  const spotlightTemplates: { id: string; title: string; description: string; category?: string; prompt?: string }[] = [
+    { id: 'concept-evaluation', title: '新商品コンセプト評価', description: '新商品の魅力・購入意向・独自性をコンパクトに確認します', category: '新商品・サービス調査', prompt: '新商品コンセプトの魅力度・購入意向・独自性を評価する設問を5問程度で提案して。対象は一般消費者。最後に自由記述も入れて。\n\nテーマ: 新商品コンセプト評価\n手法: 本調査\n設問数: 5問\n対象者: 一般対象者\n目的: 改善ポイントを知りたい' },
+    { id: 'employee-satisfaction', title: '従業員満足度（ES調査）', description: '制度・職場環境・エンゲージメントを短時間で把握します', category: '満足度・評価調査', prompt: '従業員満足度（ES）を測る本調査の設問（5問目安）を提案して。制度・職場環境・エンゲージメントを含めて。\n\nテーマ: 従業員満足度（ES）調査\n手法: 本調査\n設問数: 5問\n対象者: 従業員\n目的: 改善点を知りたい' },
   ];
 
   const sendSuggestion = (text: string) => {
@@ -528,9 +592,226 @@ export default function SurveyAssistantPage() {
     }, 0);
   };
 
+  // Build a prompt string from a template entry for the modal (fallback for items without explicit prompt)
+  function getPromptForTemplateEntry(tpl: { id: string; title: string; description?: string; category?: string }): string {
+    const desc = (tpl.description ?? '').trim();
+    const purpose = desc || `${tpl.title}に関する調査`;
+    return `${tpl.title}の調査に必要な設問を5問程度で提案してください。\n\nテーマ: ${tpl.title}\n手法: 本調査\n設問数: 5問\n対象者: 一般対象者\n目的: ${purpose}`;
+  }
+
+  // Parse structured meta from a prompt block
+  function parsePromptMeta(prompt?: string): { purpose?: string; method?: string; count?: number } {
+    if (!prompt) return {};
+    const get = (label: string) => {
+      const m = prompt.match(new RegExp(`${label}\\s*[:：]\\s*(.+)`));
+      return m ? m[1].trim() : undefined;
+    };
+    const purpose = get('目的');
+    const methodRaw = get('手法');
+    const method = methodRaw && /事前調査|screening/i.test(methodRaw) ? '事前調査' : (methodRaw ? '本調査' : undefined);
+    const countRaw = get('設問数');
+    const cm = countRaw?.match(/(\d+)/);
+    const count = cm ? Math.max(1, Math.min(20, parseInt(cm[1]!, 10))) : undefined;
+    return { purpose, method, count };
+  }
+
+  // Provide lightweight question structure tags by template id
+  function getQuestionStructure(templateId: string): string[] {
+    switch (templateId) {
+      case 'concept-evaluation':
+        return ['コンセプトの魅力度', '購入意向', '独自性の評価', '改善要望（自由記述）'];
+      case 'employee-satisfaction':
+        return ['利用状況／体験', '全体満足度', '各要素満足度（制度・環境）', 'エンゲージメント', '改善要望'];
+      case 'price-sensitivity':
+        return ['利用状況', '価格認知・印象', 'PSM（4設問）', '関連確認'];
+      case 'brand-image-evaluation':
+        return ['全体印象', 'ブランドイメージ（信頼性・先進性・親しみやすさ）', '比較・強弱把握'];
+      default:
+        return ['利用状況', '全体満足度', '要素別評価', '改善要望'];
+    }
+  }
+
+  // Friendly meta text by template id
+  function getTemplateFriendlyMeta(templateId: string, fallbackDesc?: string): { purpose: string; method: string; structure: string[] } {
+    switch (templateId) {
+      case 'customer-satisfaction':
+        return {
+          purpose: '顧客の満足度や改善点を把握するための調査です。',
+          method: '本調査',
+          structure: ['利用状況', '満足度', '改善要望'],
+        };
+      case 'concept-evaluation':
+        return {
+          purpose: '新商品コンセプトの受容性や改善余地を把握するための調査です。',
+          method: '本調査',
+          structure: getQuestionStructure(templateId),
+        };
+      case 'employee-satisfaction':
+        return {
+          purpose: '従業員の満足度や組織の改善点を把握するための調査です。',
+          method: '本調査',
+          structure: getQuestionStructure(templateId),
+        };
+      case 'price-sensitivity':
+        return {
+          purpose: '許容価格帯や価格印象を把握するための調査です。',
+          method: '本調査',
+          structure: getQuestionStructure(templateId),
+        };
+      case 'brand-image-evaluation':
+        return {
+          purpose: 'ブランドの印象や強み・弱みを整理するための調査です。',
+          method: '本調査',
+          structure: getQuestionStructure(templateId),
+        };
+      default:
+        return {
+          purpose: fallbackDesc ? `${fallbackDesc}ための調査です。` : '対象テーマに関する実態や改善点を把握するための調査です。',
+          method: '本調査',
+          structure: getQuestionStructure(templateId),
+        };
+    }
+  }
+
+  function getDefaultAudience(templateId: string): string {
+    switch (templateId) {
+      case 'customer-satisfaction':
+        return '既存顧客';
+      case 'employee-satisfaction':
+        return '全従業員';
+      case 'product-usage':
+        return '商品利用経験者';
+      case 'brand-image-evaluation':
+        return '一般消費者';
+      case 'event-satisfaction':
+        return 'イベント参加者';
+      case 'concept-evaluation':
+        return '一般消費者';
+      case 'app-usage':
+        return 'アプリ利用者';
+      case 'ad-effectiveness':
+        return '広告接触者';
+      case 'nps-survey':
+        return '顧客';
+      case 'churn-analysis':
+        return '解約者';
+      default:
+        return '一般対象者';
+    }
+  }
+
+  function getOverrides(templateId: string): { count: number; methodLabel: string; audience: string } {
+    const audience = getDefaultAudience(templateId);
+    switch (templateId) {
+      case 'customer-satisfaction':
+        return { count: 5, methodLabel: '本調査', audience };
+      case 'employee-satisfaction':
+        return { count: 5, methodLabel: '本調査', audience };
+      case 'product-usage':
+        return { count: 5, methodLabel: '本調査', audience };
+      case 'brand-image-evaluation':
+        return { count: 5, methodLabel: '本調査', audience };
+      case 'event-satisfaction':
+        return { count: 5, methodLabel: '本調査', audience };
+      case 'concept-evaluation':
+        return { count: 7, methodLabel: '本調査', audience };
+      case 'app-usage':
+        return { count: 6, methodLabel: '本調査', audience };
+      case 'ad-effectiveness':
+        return { count: 5, methodLabel: '本調査', audience };
+      case 'nps-survey':
+        return { count: 3, methodLabel: '本調査', audience };
+      case 'churn-analysis':
+        return { count: 5, methodLabel: '事前抽出', audience };
+      default:
+        return { count: 5, methodLabel: '本調査', audience };
+    }
+  }
+
+  function buildStructuredPrompt(args: { id: string; title: string; purpose: string; count: number; methodLabel: string; audience: string }): string {
+    const { title, purpose, count, methodLabel, audience } = args;
+    return `テーマ: ${title}\n設問数: ${count}問\n調査タイプ: ${methodLabel}\n対象者: ${audience}\n目的: ${purpose}`;
+  }
+
+  // Display-only example without duplicates (omit 調査タイプ and 目的 which are already shown above)
+  function buildDisplayExample(args: { title: string; purpose: string; count: number; audience: string; methodLabel: string }): string {
+    const { title } = args;
+    return `テーマ: ${title}`;
+  }
+
+  // Numbered flow with short hints for 質問構成
+  function getQuestionFlowWithHints(templateId: string): { label: string; hint: string }[] {
+    switch (templateId) {
+      case 'customer-satisfaction':
+        return [
+          { label: '利用状況', hint: '現在/過去/未利用など' },
+          { label: '満足度', hint: '総合満足の5段階評価' },
+          { label: '改善要望', hint: '自由記述で改善点' },
+        ];
+      case 'employee-satisfaction':
+        return [
+          { label: '体験/環境', hint: '制度・職場環境の捉え方' },
+          { label: '全体満足', hint: '職場への満足度' },
+          { label: 'エンゲージメント', hint: '定着/推奨意向など' },
+          { label: '改善要望', hint: '自由記述で提案' },
+        ];
+      case 'product-usage':
+        return [
+          { label: '利用頻度', hint: 'どのくらい使うか' },
+          { label: '利用理由', hint: '重視点/選定理由' },
+          { label: 'シーン', hint: '利用場面や文脈' },
+        ];
+      case 'brand-image-evaluation':
+        return [
+          { label: '全体印象', hint: '第一想起/親近感' },
+          { label: 'イメージ', hint: '信頼性・先進性など' },
+          { label: '強み/弱み', hint: '改善余地の把握' },
+        ];
+      case 'event-satisfaction':
+        return [
+          { label: '参加状況', hint: '参加回数/動機' },
+          { label: '満足度', hint: '内容/運営の評価' },
+          { label: '改善要望', hint: '自由記述で改善点' },
+        ];
+      case 'concept-evaluation':
+        return [
+          { label: '魅力度', hint: 'どれくらい魅力的か' },
+          { label: '購入意向', hint: '購入可能性の評価' },
+          { label: '独自性', hint: '差別化の認識' },
+          { label: '改善要望', hint: '自由記述で懸念点' },
+        ];
+      case 'app-usage':
+        return [
+          { label: '利用頻度', hint: '週/日ベースの利用' },
+          { label: '利便性', hint: '操作性/速度/分かりやすさ' },
+          { label: '改善要望', hint: '機能/UXの改善点' },
+        ];
+      case 'ad-effectiveness':
+        return [
+          { label: '接触', hint: '広告を見聞きしたか' },
+          { label: '認知/想起', hint: '内容/メッセージの想起' },
+          { label: '印象/意向', hint: '好意度/行動意向' },
+        ];
+      case 'nps-survey':
+        return [
+          { label: '推奨度', hint: '0〜10点で評価' },
+          { label: '理由', hint: '推奨/非推奨の理由' },
+          { label: '改善', hint: '改善要望（任意）' },
+        ];
+      case 'churn-analysis':
+        return [
+          { label: '離脱理由', hint: 'やめた主因の特定' },
+          { label: '他社利用', hint: '代替/乗り換え先' },
+          { label: '改善', hint: '復帰の条件/改善点' },
+        ];
+      default:
+        return getQuestionStructure(templateId).map((s) => ({ label: s, hint: '' }));
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="pt-10 px-6 pb-6 max-w-7xl mx-auto">
         <div className="space-y-6">
           {/* Starter Tiles removed as requested */}
 
@@ -628,12 +909,13 @@ export default function SurveyAssistantPage() {
                     ))}
                   </div>
                 )}
-                <div className="flex gap-3">
-                  <div className="flex-1">
+                                <div className="relative">
+                  <div className="relative rounded-md border border-input bg-background ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 transition-colors">
                     <Textarea
                       ref={inputRef}
                       value={inputMessage}
                       onChange={(e) => setInputMessage(e.target.value)}
+                      onInput={(e) => autoResizeTextarea(e.currentTarget)}
                       onKeyDown={handleKeyDown}
                       onFocus={() => {
                         setInputFocused(true);
@@ -641,106 +923,74 @@ export default function SurveyAssistantPage() {
                       }}
                       onBlur={() => setInputFocused(false)}
                       placeholder="例：新サービスの満足度を3問で確認したい"
-                      rows={3}
+                      className="min-h-[48px] max-h-[40vh] resize-none overflow-auto leading-6 pr-16 border-0 bg-transparent"
                     />
-                    <div className="mt-1 text-xs text-muted-foreground">Enterで送信 / Shift+Enterで改行 ・ ファイルをドロップして添付</div>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <input
-                      type="file"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      id="chat-file-upload"
-                      accept=".pdf,.doc,.docx,.xlsx,.pptx,.txt,.csv"
-                      multiple
-                    />
-                    <Button asChild variant="outline">
-                      <label htmlFor="chat-file-upload" className="cursor-pointer">
-                        <Upload className="h-5 w-5" />
-                      </label>
-                    </Button>
                     <Button
+                      className="absolute bottom-2 right-2 h-9 w-9 p-0 flex items-center justify-center"
                       onClick={handleSendMessage}
                       disabled={isSending || (!inputMessage.trim() && attachedFiles.length === 0)}
+                      aria-label="送信"
                     >
                       {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                     </Button>
                   </div>
+                  <div className="mt-1 text-xs text-muted-foreground">Enterで送信 / Shift+Enterで改行</div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Recent - grid 3 columns, centered */}
-          <div className="space-y-2">
-            <div className="flex items-center">
-              <h4 className="text-sm font-medium text-foreground">最近使った</h4>
-            </div>
-            <div className="mx-auto w-full max-w-[1200px]">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-4 justify-center justify-items-center place-content-center min-h-[220px]">
-                {recentTemplates.slice(0, 4).map((t) => (
-                  <Card key={t.id} className="p-4 w-[280px] min-h-[180px] hover:shadow-md transition-shadow flex flex-col overflow-visible">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-sm font-medium">{t.title}</div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-foreground">{t.category ?? 'テンプレート'}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground line-clamp-2 break-words">{t.description}</div>
-                    <div className="flex items-center gap-1 mt-1">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-foreground">5問目安</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-foreground">本調査</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-1 text-[10px] text-muted-foreground overflow-visible">
-                      <span className="px-1.5 py-0.5 rounded bg-muted">設問設計</span>
-                      <span className="px-1.5 py-0.5 rounded bg-muted">対象設定</span>
-                      <span className="px-1.5 py-0.5 rounded bg-muted">選択肢</span>
-                    </div>
-                    <div className="flex flex-col md:flex-row gap-1 md:gap-2 mt-auto">
-                      <Button variant="outline" size="sm" onClick={() => handleSelectTemplate(t)}>プレビュー</Button>
-                      <Button size="sm" onClick={() => guideToChatFromTemplate({ title: t.title, description: t.description, category: t.category ?? 'テンプレート', audience: '一般対象者', questions: [], purpose: t.description })}>チャットでカスタマイズ</Button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          </div>
 
           {/* よく使うテンプレート - grid 3 columns */}
-          <div className="space-y-2">
+          <div className="space-y-1 mt-5">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium text-foreground">よく使うテンプレート</h4>
+              <h4 className="text-base font-medium text-foreground">プロンプトテンプレート</h4>
               <Button variant="ghost" size="sm" onClick={() => setSeeAllOpen(true)}>すべて表示</Button>
             </div>
-            <div className="mx-auto w-full max-w-[1200px]">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-4 justify-center justify-items-center place-content-center min-h-[220px]">
+            <div className="mx-auto w-full max-w-[1200px] px-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-5 justify-center justify-items-center place-content-center min-h-[260px]">
                 {[
                   ...spotlightTemplates,
-                  { id: 'price-sensitivity', title: '価格受容性調査', description: '許容価格帯の把握', category: '新商品・サービス調査' },
-                  { id: 'brand-image-evaluation', title: 'ブランドイメージ評価', description: '親しみやすさ等の測定', category: 'ブランド・イメージ調査' },
-                ].slice(0,4).map((t: any) => (
-                  <Card key={t.id} className="p-4 w-[280px] relative overflow-hidden hover:shadow-md transition-shadow min-h-[180px] flex flex-col overflow-visible">
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
-                    <div className="relative z-10 flex flex-col h-full">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-semibold">{t.title}</div>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-foreground">{t.category ?? 'テンプレート'}</span>
+                  { id: 'price-sensitivity', title: '価格受容性調査', description: 'PSMで許容価格帯の目安をすばやく確認します', category: '新商品・サービス調査', prompt: 'PSM（価格感度測定）を用いて許容価格帯を把握するための設問（PSMの4設問＋関連設問）を提案して。\n\nテーマ: 価格受容性調査\n手法: 本調査\n設問数: 5問\n対象者: 一般対象者\n目的: 許容価格帯を知りたい' },
+                  { id: 'brand-image-evaluation', title: 'ブランドイメージ評価', description: '信頼性・先進性・親しみやすさなどの印象を整理します', category: 'ブランド・イメージ調査', prompt: '信頼性・先進性・親しみやすさ等のブランドイメージ指標を評価する設問を提案して。\n\nテーマ: ブランドイメージ評価\n手法: 本調査\n設問数: 5問\n対象者: 一般対象者\n目的: 強み・弱みを知りたい' },
+                ].slice(0,3).map((t: any) => {
+                  const friendly = getTemplateFriendlyMeta(t.id, t.description);
+                  const ov = getOverrides(t.id);
+                  const exampleText = buildStructuredPrompt({ id: t.id, title: t.title, purpose: friendly.purpose, count: ov.count, methodLabel: ov.methodLabel, audience: ov.audience });
+                  return (
+                    <Card key={t.id} className="p-4 w-[360px] relative overflow-hidden hover:shadow-lg transition-shadow min-h-[320px] flex flex-col overflow-visible">
+                      
+                      <div className="relative z-10 flex flex-col h-full gap-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <div className="text-[17px] font-semibold leading-6">{t.title}</div>
+                          </div>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-foreground">{t.category ?? 'テンプレート'}</span>
+                        </div>
+                        <div className="text-[13px] text-foreground"><span className="text-foreground">目的：</span>{friendly.purpose}</div>
+                        <div className="text-[13px] text-foreground mt-0.5">調査手法: {ov.methodLabel}</div>
+                        <div className="text-[13px] text-foreground">設問数: {ov.count}問</div>
+                        <div className="mt-1 text-[13px] text-foreground">
+                          <span className="text-[12px] text-foreground tracking-wide">質問構成</span>
+                          <ol className="mt-0.5 list-decimal pl-4 space-y-0.5">
+                            {getQuestionFlowWithHints(t.id).map((item, i) => (
+                              <li key={i}>
+                                <span className="font-medium">{item.label}</span>
+                                {item.hint ? <span className="text-muted-foreground">（{item.hint}）</span> : null}
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                        
+
+                        <div className="mt-auto pt-3 flex flex-col sm:flex-row sm:justify-end gap-2">
+                          <Button variant="outline" className="order-2 sm:order-1 w-full sm:w-auto" onClick={() => handleSelectTemplate(t)}>プレビュー</Button>
+                          <Button className="order-1 sm:order-2 w-full sm:w-auto h-9" onClick={() => sendSuggestion(t.prompt ?? exampleText)}>このプロンプトを利用する</Button>
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground line-clamp-2 break-words">{t.description}</div>
-                      <div className="flex items-center gap-1 mt-1">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-foreground">5問目安</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-foreground">本調査</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1 mt-1 text-[10px] text-muted-foreground">
-                        <span className="px-1.5 py-0.5 rounded bg-muted">認知/評価</span>
-                        <span className="px-1.5 py-0.5 rounded bg-muted">改善提案</span>
-                        <span className="px-1.5 py-0.5 rounded bg-muted">選択肢</span>
-                      </div>
-                      <div className="flex flex-col md:flex-row gap-1 md:gap-2 mt-auto pt-3">
-                        <Button size="sm" variant="outline" onClick={() => handleSelectTemplate(t)}>プレビュー</Button>
-                        <Button size="sm" onClick={() => guideToChatFromTemplate({ title: t.title, description: t.description, category: t.category ?? 'テンプレート', questionCount: 5, audience: '一般対象者', questions: [], purpose: t.description })}>チャットでカスタマイズ</Button>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -787,24 +1037,38 @@ export default function SurveyAssistantPage() {
                         const filtered = tplFiltered;
                         const start = (tplPage - 1) * tplPageSize;
                         const shown = filtered.slice(start, start + tplPageSize);
-                        return shown.map((tpl, idx) => (
-                          <Card key={`${tpl.id}-${idx}`} className="p-3 border rounded-lg flex flex-col">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <div className="text-sm font-medium line-clamp-1">{tpl.title}</div>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-foreground">{tpl.category ?? 'テンプレート'}</span>
-                            </div>
-                            <div className="text-xs text-muted-foreground line-clamp-2 mb-1.5">{tpl.description}</div>
-                            <div className="flex flex-wrap gap-1 mb-2 text-[10px] text-muted-foreground">
-                              {(tpl.features.slice(0, 3)).map((f, i) => (
-                                <span key={i} className="px-1.5 py-0.5 rounded bg-muted">{f}</span>
-                              ))}
-                            </div>
-                            <div className="mt-auto flex flex-col sm:flex-row gap-1 sm:gap-2">
-                              <Button size="sm" variant="outline" onClick={() => handleSelectTemplate({ id: tpl.id, title: tpl.title, description: tpl.description, category: tpl.category })}>プレビュー</Button>
-                              <Button size="sm" onClick={() => guideToChatFromTemplate({ title: tpl.title, description: tpl.description, category: tpl.category ?? 'テンプレート', questionCount: 5, audience: '一般対象者', questions: [], purpose: tpl.description })}>チャットでカスタマイズ</Button>
-                            </div>
-                          </Card>
-                        ));
+                        return shown.map((tpl, idx) => {
+                          const friendly = getTemplateFriendlyMeta(tpl.id, tpl.description);
+                          const ov = getOverrides(tpl.id);
+                          const prompt = buildStructuredPrompt({ id: tpl.id, title: tpl.title, purpose: friendly.purpose, count: ov.count, methodLabel: ov.methodLabel, audience: ov.audience });
+                          return (
+                            <Card key={`${tpl.id}-${idx}`} className="p-3 border rounded-lg flex flex-col">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <div className="text-sm font-medium line-clamp-1">{tpl.title}</div>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-foreground">{tpl.category ?? 'テンプレート'}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mb-1">{tpl.description}</div>
+                              <div className="text-[13px] text-foreground"><span className="text-muted-foreground">目的：</span>{friendly.purpose}</div>
+                              <div className="text-[13px] text-foreground mt-0.5">調査手法: {ov.methodLabel}</div>
+                              <div className="mt-1 text-[13px] text-foreground">
+                                <span className="text-[11px] text-foreground tracking-wide">質問構成</span>
+                                <ol className="mt-0.5 list-decimal pl-4 space-y-0.5">
+                                  {getQuestionFlowWithHints(tpl.id).map((item, i) => (
+                                    <li key={i}>
+                                      <span className="font-medium">{item.label}</span>
+                                      {item.hint ? <span className="text-muted-foreground">（{item.hint}）</span> : null}
+                                    </li>
+                                  ))}
+                                </ol>
+                              </div>
+                              
+                              <div className="mt-auto flex flex-col sm:flex-row gap-1 sm:gap-2 pt-2">
+                                <Button size="sm" variant="outline" onClick={() => handleSelectTemplate({ id: tpl.id, title: tpl.title, description: tpl.description, category: tpl.category })}>プレビュー</Button>
+                                <Button size="sm" onClick={() => insertPromptToInput(prompt)}>このプロンプトを利用する</Button>
+                              </div>
+                            </Card>
+                          );
+                        });
                       })()}
                     </div>
                   </div>

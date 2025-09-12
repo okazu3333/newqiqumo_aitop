@@ -37,7 +37,7 @@ const templateSegments = [
       },
       {
         id: 'ad-effectiveness',
-        title: '広告効果測定',
+        title: '広告効果調査',
         description: '広告接触の有無、想起した内容、印象変化を測定',
         features: ['広告接触率', '想起内容', '印象変化'],
         difficulty: 'intermediate' as const
@@ -110,6 +110,13 @@ const templateSegments = [
         difficulty: 'intermediate' as const
       },
       {
+        id: 'product-usage',
+        title: '商品利用度調査',
+        description: '利用頻度や利用理由を把握',
+        features: ['利用頻度', '利用理由', 'シーン把握'],
+        difficulty: 'basic' as const
+      },
+      {
         id: 'usage-scenario',
         title: '利用シーン調査',
         description: 'いつ・どこで・どんな状況で使われているかを調査',
@@ -129,6 +136,13 @@ const templateSegments = [
         description: '属性や生活習慣、関連行動を把握',
         features: ['デモグラフィック', 'ライフスタイル', '行動パターン'],
         difficulty: 'intermediate' as const
+      },
+      {
+        id: 'app-usage',
+        title: 'アプリ利用調査',
+        description: '利便性や改善点を把握',
+        features: ['利用頻度', 'UX評価', '改善要望'],
+        difficulty: 'basic' as const
       }
     ]
   },
