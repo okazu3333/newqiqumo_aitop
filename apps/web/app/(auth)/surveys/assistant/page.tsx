@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Send, Upload, Loader2, Check } from 'lucide-react';
+import { Send, Loader2, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import QuestionConfirmModal from '@/components/survey-assistant/QuestionConfirmModal';
 import TemplatePreviewModal, { TemplatePreview, PreviewQuestion } from '@/components/survey-assistant/TemplatePreviewModal';
@@ -404,12 +404,8 @@ export default function SurveyAssistantPage() {
     }, 800);
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files) {
-      setAttachedFiles(prev => [...prev, ...Array.from(files)]);
-    }
-  };
+  // removed unused handleFileUpload to satisfy build
+
 
   const handleDropFiles = (e: React.DragEvent) => {
     e.preventDefault();
@@ -623,27 +619,7 @@ export default function SurveyAssistantPage() {
   };
 
   // Build a prompt string from a template entry for the modal (fallback for items without explicit prompt)
-  function getPromptForTemplateEntry(tpl: { id: string; title: string; description?: string; category?: string }): string {
-    const desc = (tpl.description ?? '').trim();
-    const purpose = desc || `${tpl.title}に関する調査`;
-    return `${tpl.title}の調査に必要な設問を5問程度で提案してください。\n\nテーマ: ${tpl.title}\n手法: 本調査\n設問数: 5問\n対象者: 一般対象者\n目的: ${purpose}`;
-  }
-
-  // Parse structured meta from a prompt block
-  function parsePromptMeta(prompt?: string): { purpose?: string; method?: string; count?: number } {
-    if (!prompt) return {};
-    const get = (label: string) => {
-      const m = prompt.match(new RegExp(`${label}\\s*[:：]\\s*(.+)`));
-      return m ? m[1].trim() : undefined;
-    };
-    const purpose = get('目的');
-    const methodRaw = get('手法');
-    const method = methodRaw && /事前調査|screening/i.test(methodRaw) ? '事前調査' : (methodRaw ? '本調査' : undefined);
-    const countRaw = get('設問数');
-    const cm = countRaw?.match(/(\d+)/);
-    const count = cm ? Math.max(1, Math.min(20, parseInt(cm[1]!, 10))) : undefined;
-    return { purpose, method, count };
-  }
+  // function getPromptForTemplateEntry(...) removed (unused) to satisfy build
 
   // Provide lightweight question structure tags by template id
   function getQuestionStructure(templateId: string): string[] {
@@ -764,10 +740,7 @@ export default function SurveyAssistantPage() {
   }
 
   // Display-only example without duplicates (omit 調査タイプ and 目的 which are already shown above)
-  function buildDisplayExample(args: { title: string; purpose: string; count: number; audience: string; methodLabel: string }): string {
-    const { title } = args;
-    return `テーマ: ${title}`;
-  }
+  // buildDisplayExample removed (unused)
 
   // Build a more specific rationale string for tooltips based on question text/type
   function buildRationaleFor(text: string, type: string): string {
