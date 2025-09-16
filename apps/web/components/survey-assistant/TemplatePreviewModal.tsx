@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { X, FileText, User, CircleDot, CheckSquare, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef } from "react";
+import { HoverHelp } from "@/components/ui/hover-help";
 
 export type PreviewQuestion = {
   id?: string;
@@ -12,6 +13,7 @@ export type PreviewQuestion = {
   options?: string[];
   scale?: { min: number; max: number; labels: string[] };
   category?: string;
+  rationale?: string;
 };
 
 export type TemplatePreview = {
@@ -198,13 +200,16 @@ function QuestionItem({ index, question }: { index: number; question: PreviewQue
 
   return (
     <div className="bg-white rounded-lg border border-gray-200">
-      <div className="p-4 flex items-start justify-between gap-3">
+      <div className="p-4 flex items-start justify-between gap-3 overflow-visible">
         <div className="flex-1 min-w-0">
           <p className="text-sm text-gray-900 flex items-center gap-2 flex-wrap">
             <span className="text-gray-500 mr-1">Q{index + 1}.</span>
             <TypeBadge type={question.type} />
             {question.category && <CategoryBadge label={question.category} />}
-            <span className="whitespace-pre-wrap break-words">{question.text}</span>
+            <span className="whitespace-pre-wrap break-words inline-flex items-center gap-1">
+              {question.text}
+              {question.rationale && <HoverHelp text={question.rationale} side="right" />}
+            </span>
           </p>
         </div>
         {(question.options?.length || question.scale) && (

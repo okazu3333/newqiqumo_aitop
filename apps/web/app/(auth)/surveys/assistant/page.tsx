@@ -346,12 +346,40 @@ export default function SurveyAssistantPage() {
         const aiMsg: ChatMessage = { id: `a-${Date.now()}`, role: 'assistant', content: assistantText };
         setMessages(prev => [...prev, aiMsg]);
         // Map to TemplatePreviewModal format
+        const buildRationaleFor = (text: string, type: string): string => {
+          const t = text || '';
+          const is = (re: RegExp) => re.test(t);
+          if (is(/満足|満足度/)) return 'KPIの把握が必要なので、5件法でTop2Box/平均を確認する設問を作成';
+          if (is(/推奨|薦め|NPS/)) return '口コミ意向を見たいので、推奨度を段階評価で測る設問を作成';
+          if (is(/購入意向|購入|利用意向/)) return '需要の強さを判断したいので、意向の段階評価設問を作成';
+          if (is(/魅力|魅力度/)) return '第一印象の強さを把握したいので、魅力度の段階評価設問を作成';
+          if (is(/独自性|差別化/)) return '差別化の認識を確認したいので、独自性の段階評価設問を作成';
+          if (is(/認知|知って/)) return '到達状況を把握したいので、認知有無の単一選択設問を作成';
+          if (is(/利用状況|頻度/)) return 'セグメント分けのため、現状把握（利用状況/頻度）の単一選択設問を作成';
+          if (is(/価格|PSM|高い|安い/)) return '価格印象を確認したいので、価格に関する段階評価/選択設問を作成';
+          if (is(/改善|理由|自由記述|ご自由に/)) return '具体策を集めたいので、自由記述で理由/改善案を収集する設問を作成';
+          if (is(/年齢|性別|職業|年収/)) return '分析軸の把握が必要なので、基本属性の単一選択設問を作成';
+          switch (type) {
+            case 'single':
+            case 'single_choice':
+              return '判断の明確化が必要なので、単一選択の設問を作成';
+            case 'multiple':
+            case 'multiple_choice':
+              return '重視点を網羅把握したいので、複数選択の設問を作成';
+            case 'scale':
+              return '強さの度合いを把握したいので、段階評価の設問を作成';
+            case 'text':
+            default:
+              return '具体的な声を集めたいので、自由記述の設問を作成';
+          }
+        };
         const previewQuestions = survey.questions.map((q) => {
           const base: any = { text: q.text };
-          if (q.type === 'single_choice') return { ...base, type: 'single', options: q.options };
-          if (q.type === 'multiple_choice') return { ...base, type: 'multiple', options: q.options };
-          if (q.type === 'scale') return { ...base, type: 'scale', scale: { min: 1, max: (q.options?.length ?? 5), labels: q.options ?? ['非常に不満','不満','普通','満足','非常に満足'] } };
-          return { ...base, type: 'text' };
+          const rationale = buildRationaleFor(q.text, q.type);
+          if (q.type === 'single_choice') return { ...base, type: 'single', options: q.options, rationale };
+          if (q.type === 'multiple_choice') return { ...base, type: 'multiple', options: q.options, rationale };
+          if (q.type === 'scale') return { ...base, type: 'scale', scale: { min: 1, max: (q.options?.length ?? 5), labels: q.options ?? ['非常に不満','不満','普通','満足','非常に満足'] }, rationale };
+          return { ...base, type: 'text', rationale };
         });
         // Assign dummy categories cyclically
         const catPool = ['基本事実', '態度・意識', '改善要望', '認知経路'];
@@ -558,16 +586,18 @@ export default function SurveyAssistantPage() {
                 return Object.entries(counts).map(([label, count]) => ({ label, count }));
               };
               const questions = getQuestions(item.id);
+              const buildTplRationale = (text: string, type: string) => buildRationaleFor(text, type);
+              const questionsWithRationale = questions.map((q) => ({ ...q, rationale: buildTplRationale(q.text, q.type as string) }));
               setPreviewData({
                 title: item.title,
                 description: item.description,
                 category: item.category ?? 'テンプレート',
-                questionCount: questions.length,
+                questionCount: questionsWithRationale.length,
                 audience: getAudience(item.id),
-                questions,
-      purpose: item.description,
+                questions: questionsWithRationale,
+                purpose: item.description,
                 categoryCounts: buildCategoryCounts(item.id),
-      mode: tplMethod || undefined,
+                mode: tplMethod || undefined,
               });
               setPreviewOpen(true);
   };
@@ -739,6 +769,35 @@ export default function SurveyAssistantPage() {
     return `テーマ: ${title}`;
   }
 
+  // Build a more specific rationale string for tooltips based on question text/type
+  function buildRationaleFor(text: string, type: string): string {
+    const t = text || '';
+    const is = (re: RegExp) => re.test(t);
+    if (is(/満足|満足度/)) return 'KPIの把握が必要なので、5件法でTop2Box/平均を確認する設問を作成';
+    if (is(/推奨|薦め|NPS/)) return '口コミ意向を見たいので、推奨度を段階評価で測る設問を作成';
+    if (is(/購入意向|購入|利用意向/)) return '需要の強さを判断したいので、意向の段階評価設問を作成';
+    if (is(/魅力|魅力度/)) return '第一印象の強さを把握したいので、魅力度の段階評価設問を作成';
+    if (is(/独自性|差別化/)) return '差別化の認識を確認したいので、独自性の段階評価設問を作成';
+    if (is(/認知|知って/)) return '到達状況を把握したいので、認知有無の単一選択設問を作成';
+    if (is(/利用状況|頻度/)) return 'セグメント分けのため、現状把握（利用状況/頻度）の単一選択設問を作成';
+    if (is(/価格|PSM|高い|安い/)) return '価格印象を確認したいので、価格に関する段階評価/選択設問を作成';
+    if (is(/改善|理由|自由記述|ご自由に/)) return '具体策を集めたいので、自由記述で理由/改善案を収集する設問を作成';
+    if (is(/年齢|性別|職業|年収/)) return '分析軸の把握が必要なので、基本属性の単一選択設問を作成';
+    switch (type) {
+      case 'single':
+      case 'single_choice':
+        return '判断の明確化が必要なので、単一選択の設問を作成';
+      case 'multiple':
+      case 'multiple_choice':
+        return '重視点を網羅把握したいので、複数選択の設問を作成';
+      case 'scale':
+        return '強さの度合いを把握したいので、段階評価の設問を作成';
+      case 'text':
+      default:
+        return '具体的な声を集めたいので、自由記述の設問を作成';
+    }
+  }
+
   // Numbered flow with short hints for 質問構成
   function getQuestionFlowWithHints(templateId: string): { label: string; hint: string }[] {
     switch (templateId) {
@@ -818,7 +877,7 @@ export default function SurveyAssistantPage() {
           <Card ref={chatCardRef} className={`relative p-0`}>
             {/* Chat Header */}
             <CardHeader className="px-6 pt-5 pb-3 border-b bg-muted rounded-t-lg">
-              <p className="text-muted-foreground text-sm">作成したい項目を自然文で入力、テンプレート選択もしくは、過去調査票ファイルをアップロードしてください</p>
+              <p className="text-muted-foreground text-sm">調査項目をチャットで入力もしくは、プロンプトテンプレートから選択してください</p>
               {justSent && (
                 <div className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-1 text-xs shadow-sm">
                   <Check className="w-3.5 h-3.5" /> 送信しました
@@ -832,23 +891,29 @@ export default function SurveyAssistantPage() {
                 {showWelcome && (
                   <div className="flex justify-start">
                     <div className="bg-background text-foreground border rounded-2xl px-4 py-3 text-sm max-w-[70%] shadow-sm">
-                      <p className="mb-2">以下の項目を入力し、アンケートを作成してください。</p>
-                      <p className="text-xs text-muted-foreground mb-2">入力がないものは、推定項目としてアンケートを作成します。</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li>タイトル（例：製品利用度調査）</li>
-                        <li>調査目的（例：商品改良にあたり、現状の利用度調査をしたい）</li>
-                        <li>設問条件（例：5問程度で作成）</li>
+                      <p className="mb-2">👋 こんにちは！私はアンケート作成AIです。</p>
+                      <p className="mb-3">知りたいことを入力していただければ、自動でアンケートを作ります。ざっくりでも、詳しく書いても大丈夫です。</p>
+
+                      <p className="text-xs text-muted-foreground font-medium mb-1">📝 入力例（カンタンに始めたい方）</p>
+                      <ul className="list-disc list-inside pl-0 space-y-1 mb-3">
+                        <li>社員が仕事に満足しているか知りたい</li>
+                        <li>新しい商品についてお客さんの印象を知りたい</li>
                       </ul>
-                      <div className="mt-2 text-xs text-muted-foreground">テンプレートから始める場合は下のテンプレート一覧をご利用ください。</div>
-                      <div className="mt-3 flex gap-2">
-                        {[
-                          '従業員満足度調査で本調査を提案して',
-                          'ブランド認知度の事前調査を3問で',
-                        ].map((ex, i) => (
-                          <Button key={i} size="sm" variant="secondary" onClick={() => { setInputMessage(ex); setShowWelcome(false); }}>
-                            {ex}
-                          </Button>
-                        ))}
+
+                      <p className="text-xs text-muted-foreground font-medium mb-1">🔎 入力例（調査に慣れている方向け）</p>
+                      <ul className="list-disc list-inside pl-0 space-y-1 mb-3">
+                        <li>30代女性を対象に、新商品の購入意向を200サンプルで調査したい</li>
+                        <li className="list-none">NPSとブランドイメージを併せて測りたい（業種は通信、利用歴あり）</li>
+                      </ul>
+
+                      <p className="text-xs text-muted-foreground font-medium mb-1">⚡ 流れ</p>
+                      <ol className="list-decimal pl-5 space-y-1 mb-3">
+                        <li>知りたいことを入力</li>
+                        <li>不足があればAIが推定 or 簡単に質問</li>
+                        <li>完成したアンケートをプレビュー（必要なら詳細編集もできます）</li>
+                      </ol>
+
+                      <div className="mt-2 flex gap-2 justify-end">
                         <Button size="sm" variant="ghost" onClick={() => { setShowWelcome(false); }}>閉じる</Button>
                       </div>
                     </div>
@@ -856,8 +921,10 @@ export default function SurveyAssistantPage() {
                 )}
                 {messages.filter(m => m.role !== 'system').map((m) => (
                   <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`} aria-live={m.role === 'assistant' ? 'polite' : undefined}>
-                    <div className={`${m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground border'} rounded-2xl px-4 py-2 text-sm max-w-[70%] whitespace-pre-wrap shadow-sm`}>
-                      {m.content}
+                    <div className={`${m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'} rounded-2xl px-4 py-3 text-[15px] leading-6 break-words shadow-sm max-w-[68%] md:max-w-[60%]`}>
+                      {m.content.split(/\n\s*\n/).map((para, idx) => (
+                        <p key={idx} className="mb-2 last:mb-0 whitespace-pre-wrap">{para}</p>
+                      ))}
                     </div>
                   </div>
                 ))}

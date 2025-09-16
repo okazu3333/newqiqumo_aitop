@@ -45,6 +45,7 @@ export type QuestionFormProps = {
     questionText: string;
   }>;
   selectedPipingQuestionId?: string;
+  rationale?: string;
 };
 
 /**
@@ -89,6 +90,7 @@ export const QuestionForm = ({
   dragHandleProps,
   previousQuestions,
   selectedPipingQuestionId,
+  rationale,
 }: QuestionFormProps) => {
   // Render the appropriate question component based on type
   switch (type) {
@@ -111,6 +113,7 @@ export const QuestionForm = ({
           dragHandleProps={dragHandleProps}
           previousQuestions={previousQuestions}
           selectedPipingQuestionId={selectedPipingQuestionId}
+          rationale={rationale}
         />
       );
     case "MA":
@@ -132,6 +135,7 @@ export const QuestionForm = ({
           dragHandleProps={dragHandleProps}
           previousQuestions={previousQuestions}
           selectedPipingQuestionId={selectedPipingQuestionId}
+          rationale={rationale}
         />
       );
     case "NU":
@@ -155,6 +159,7 @@ export const QuestionForm = ({
           dragHandleProps={dragHandleProps}
           previousQuestions={previousQuestions}
           selectedPipingQuestionId={selectedPipingQuestionId}
+          rationale={rationale}
         />
       );
     case "FA":
@@ -177,6 +182,7 @@ export const QuestionForm = ({
           dragHandleProps={dragHandleProps}
           previousQuestions={previousQuestions}
           selectedPipingQuestionId={selectedPipingQuestionId}
+          rationale={rationale}
         />
       );
     default:

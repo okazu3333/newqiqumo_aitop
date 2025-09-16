@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { HoverHelp } from "@/components/ui/hover-help";
 
 export type MultipleChoiceOption = {
   id: string | number;
@@ -43,6 +44,7 @@ export type MultipleChoiceQuestionProps = {
     questionText: string;
   }>;
   selectedPipingQuestionId?: string;
+  rationale?: string;
 };
 
 export const MultipleChoiceQuestion = ({
@@ -62,6 +64,7 @@ export const MultipleChoiceQuestion = ({
   dragHandleProps,
   previousQuestions = [],
   selectedPipingQuestionId,
+  rationale,
 }: MultipleChoiceQuestionProps) => {
   const [isSelected, setIsSelected] = useState(false);
   const [localQuestion, setLocalQuestion] = useState(questionText);
@@ -333,9 +336,10 @@ export const MultipleChoiceQuestion = ({
         ) : (
           <>
             <div className="flex items-center gap-2 relative self-stretch w-full">
-              <div className="flex items-center relative flex-1 grow">
-                <div className="flex-1 mt-[-1.00px] font-medium text-[#333333] text-sm leading-6">
-                  {questionText}
+              <div className="flex items-center relative flex-1 grow overflow-visible">
+                <div className="flex items-center gap-2 flex-1 mt-[-1.00px] font-medium text-[#333333] text-sm leading-6">
+                  <span className="flex-1">{questionText}</span>
+                  {rationale && <HoverHelp text={rationale} side="right" />}
                 </div>
               </div>
             </div>

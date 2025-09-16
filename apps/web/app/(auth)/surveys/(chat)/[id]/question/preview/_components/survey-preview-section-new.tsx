@@ -165,6 +165,15 @@ export const SurveyPreviewSection = () => {
           }))
         : undefined;
 
+    // Fallback rationale (design intent) if description is missing
+    const rationaleByType: Record<string, string> = {
+      SA: "判断の明確化が必要なので、単一選択の設問を作成",
+      MA: "重視点を網羅把握したいので、複数選択の設問を作成",
+      NU: "数値の把握が必要なので、数値入力の設問を作成",
+      FA: "具体的な声を集めたいので、自由記述の設問を作成",
+    };
+    const rationale = question.description ?? rationaleByType[question.type] ?? undefined;
+
     // Get the appropriate value based on question type
     const value =
       question.type === "MA"
@@ -187,6 +196,7 @@ export const SurveyPreviewSection = () => {
         min={question.type === "NU" ? config.minValue : undefined}
         max={question.type === "NU" ? config.maxValue : undefined}
         onValueChange={(val) => handleValueChange(questionCode, val)}
+        rationale={rationale}
       />
     );
   };

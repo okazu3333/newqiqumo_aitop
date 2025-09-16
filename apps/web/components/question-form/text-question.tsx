@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { HoverHelp } from "@/components/ui/hover-help";
 
 export type TextQuestionProps = {
   questionNumber: string;
@@ -39,6 +40,7 @@ export type TextQuestionProps = {
     questionText: string;
   }>;
   selectedPipingQuestionId?: string;
+  rationale?: string;
 };
 
 export const TextQuestion = ({
@@ -59,6 +61,7 @@ export const TextQuestion = ({
   dragHandleProps,
   previousQuestions = [],
   selectedPipingQuestionId,
+  rationale,
 }: TextQuestionProps) => {
   const [isSelected, setIsSelected] = useState(false);
   const [localQuestion, setLocalQuestion] = useState(questionText);
@@ -259,9 +262,10 @@ export const TextQuestion = ({
         ) : (
           <>
             <div className="flex items-center gap-2 relative self-stretch w-full">
-              <div className="flex items-center relative flex-1 grow">
-                <div className="flex-1 mt-[-1.00px] font-medium text-[#333333] text-sm leading-6">
-                  {questionText}
+              <div className="flex items-center relative flex-1 grow overflow-visible">
+                <div className="flex items-center gap-2 flex-1 mt-[-1.00px] font-medium text-[#333333] text-sm leading-6">
+                  <span className="flex-1">{questionText}</span>
+                  {rationale && <HoverHelp text={rationale} side="right" />}
                 </div>
               </div>
             </div>
