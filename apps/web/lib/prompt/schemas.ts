@@ -12,7 +12,7 @@ export const MetaSchema = z.object({
 
 // Prompt1 (調査設計情報抽出)
 const FieldValueSchema = z.object({
-  value: z.union([z.string(), z.array(z.string()), z.record(z.unknown())]).or(z.null()).optional(),
+  value: z.union([z.string(), z.array(z.string()), z.record(z.string(), z.unknown())]).or(z.null()).optional(),
   source: z.enum(["user", "inferred", "empty"]).default("empty"),
   confidence: z.number().min(0).max(1).default(0),
 });
@@ -115,7 +115,7 @@ export const DepthQuestionSchema = z.object({
   options: z.array(z.string()).optional(),
   placeholder: z.string().optional(),
   helperText: z.string().optional(),
-  validation: z.record(z.any()).optional(),
+  validation: z.record(z.string(), z.any()).optional(),
   exampleAnswers: z.array(z.string()).optional(),
   priority: z.enum(["high", "medium", "low"]).optional(),
   dependsOn: z.array(z.string()).optional(),
@@ -126,7 +126,7 @@ export const DepthSchema = z.object({
   scope: z.object({ threadId: z.string().optional(), messageId: z.string().optional() }).optional(),
   不足項目: z.array(z.string()).default([]),
   追加質問: z.array(DepthQuestionSchema).default([]),
-  mapping: z.record(z.string()).optional(),
+  mapping: z.record(z.string(), z.string()).optional(),
   UI表示用テキスト: z.string().optional(),
   nextAction: z.enum(["confirm", "regenerate", "proceed"]).optional(),
 });

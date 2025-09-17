@@ -25,7 +25,7 @@ export class MockLlmAdapter implements LlmAdapter {
     return Prompt1Schema.parse(json);
   }
 
-  async generatePrompt2(prompt1: Prompt1): Promise<Prompt2> {
+  async generatePrompt2(_prompt1: Prompt1): Promise<Prompt2> {
     const json = {
       meta: { version: "2.0", locale: "ja-JP", generatedAt: new Date().toISOString() },
       手法分解: { スクリーニング: "対象抽出", 本調査: "本調査" },

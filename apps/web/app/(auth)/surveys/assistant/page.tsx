@@ -1207,6 +1207,18 @@ export default function SurveyAssistantPage() {
                     </div>
                   </div>
                 )}
+                {proceedOffer && (
+                  <div className="flex justify-start">
+                    <div className="bg-background border rounded-2xl px-3 py-2 text-xs text-foreground w-full max-w-[80%]">
+                      <div className="mb-1">この内容でプレビューしますか？それともチャットで補足しますか？</div>
+                      <ul className="list-disc list-inside text-[12px] text-muted-foreground mb-2">
+                        {proceedOffer.title && <li>タイトル: {proceedOffer.title}</li>}
+                        {proceedOffer.purpose && <li>目的: {proceedOffer.purpose}</li>}
+                        {proceedOffer.audience && <li>対象者条件: {proceedOffer.audience}</li>}
+                      </ul>
+                    </div>
+                  </div>
+                )}
                 {isTyping && (
                   <div className="flex justify-start gap-2 items-center">
                     <Skeleton className="h-10 w-40" />
