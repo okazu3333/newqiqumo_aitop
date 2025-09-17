@@ -72,6 +72,17 @@ export default function SurveyAssistantPage() {
   const [pastScrolled, setPastScrolled] = useState(false);
   const [pastSort, setPastSort] = useState<'おすすめ' | '新着'>('おすすめ');
 
+  // Depth follow-ups
+  const [depthFollowUps, setDepthFollowUps] = useState<{ id: string; keyLabel: string; question: string; candidates: string[] }[]>([]);
+  const [lastPrompt1, setLastPrompt1] = useState<any | null>(null);
+  const [proceedOffer, setProceedOffer] = useState<{
+    title?: string;
+    purpose?: string;
+    audience?: string;
+    missingOptional?: string[];
+  } | null>(null);
+  const [depthQueue, setDepthQueue] = useState<{ id: string; path: string; keyLabel: string; question: string; candidates: string[] }[]>([]);
+
   const chatCardRef = useRef<HTMLDivElement | null>(null);
   const isChatActive = inputMessage.trim().length > 0 || attachedFiles.length > 0;
 
@@ -196,7 +207,7 @@ export default function SurveyAssistantPage() {
     setPreviewOpen(true);
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (isSending) return;
     if (!inputMessage.trim() && attachedFiles.length === 0) return;
     // TODO: integrate with backend chat API; include SURVEY_ASSISTANT_SYSTEM_PROMPT as system message
@@ -209,6 +220,155 @@ export default function SurveyAssistantPage() {
     setInputMessage('');
     setAttachedFiles([]);
     setIsTyping(true);
+
+    // Try server-side Prompt1 extraction first
+    try {
+      const res = await fetch('/api/assist/prompt1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: userMsg.content }),
+      });
+      if (res.ok) {
+        const data: any = await res.json();
+        const required = data?.['必須項目'] ?? {};
+        const title = required?.['調査タイトル']?.value ?? required?.['タイトル']?.value;
+        const purpose = required?.['調査目的']?.value;
+        const audience = required?.['調査対象者条件']?.value;
+        setLastPrompt1(data);
+
+        // Depth: ask for missing items
+        try {
+          const depthRes = await fetch('/api/assist/depth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+          if (depthRes.ok) {
+            const depth: any = await depthRes.json();
+            const followUps = Array.isArray(depth?.['追加質問']) ? depth['追加質問'] : [];
+            const mapped = followUps.map((q: any) => ({
+              id: q?.id ?? Math.random().toString(36).slice(2),
+              keyLabel: q?.['対象項目'] ?? (q?.path ?? '不足項目'),
+              question: q?.['質問文'] ?? '',
+              candidates: Array.isArray(q?.['exampleAnswers']) ? q['exampleAnswers'] : (Array.isArray(q?.['options']) ? q['options'] : []),
+            }));
+            if (mapped.length > 0) {
+              // enqueue and ask first
+              const queue = mapped.map((m: any) => ({ id: m.id, path: m.path ?? '', keyLabel: m.keyLabel, question: m.question, candidates: m.candidates ?? [] }));
+              setDepthQueue(queue);
+              const first = queue[0];
+              const aiMsgDepth: ChatMessage = { id: `a-${Date.now() + 1}`, role: 'assistant', content: `${first.keyLabel}：${first.question}${first.candidates?.length ? `\n候補: ${first.candidates.join(' / ')}` : ''}` };
+              setMessages(prev => [...prev, aiMsgDepth]);
+              setIsSending(false);
+              setIsTyping(false);
+              setJustSent(true);
+              setTimeout(() => setJustSent(false), 900);
+              return; // stop here; wait for user to provide missing info
+            }
+          }
+        } catch {}
+
+        // 必須項目が埋まったので、要約と次アクションを提示
+        try {
+          const optional: any = data?.['任意項目'] ?? {};
+          const missingOptional = Object.entries(optional)
+            .filter(([, v]: any) => !v || v.source === 'empty' || v.value == null || (typeof v.value === 'string' && v.value.trim() === '') || (Array.isArray(v.value) && v.value.length === 0))
+            .map(([k]) => String(k));
+          setProceedOffer({ title, purpose, audience, missingOptional });
+          const aiMsgNext: ChatMessage = { id: `a-${Date.now() + 2}`, role: 'assistant', content: '不足項目は下記ですが、この内容でプレビューしますか？\nチャットで補足しますか？' };
+          setMessages(prev => [...prev, aiMsgNext]);
+        } catch {}
+        setIsSending(false);
+        setIsTyping(false);
+        setJustSent(true);
+        setTimeout(() => setJustSent(false), 900);
+        return;
+
+        // Immediately try to generate questions via Prompt2
+        try {
+          const res2 = await fetch('/api/assist/prompt2', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+          if (res2.ok) {
+            const p2: any = await res2.json();
+            // Map Prompt2 to TemplatePreviewModal questions
+            const philosophy: Record<string, string> = (p2?.['設問思想'] as any) ?? {};
+            const mapType = (v: string): 'single' | 'multiple' | 'scale' | 'text' => {
+              if (v === '単一選択') return 'single';
+              if (v === '複数選択') return 'multiple';
+              if (v === '5段階評価') return 'scale';
+              return 'text';
+            };
+            const buildRationaleFor = (text: string, type: string): string => {
+              const t = text || '';
+              const is = (re: RegExp) => re.test(t);
+              if (is(/満足|満足度/)) return 'KPIの把握が必要なので、5件法でTop2Box/平均を確認する設問を作成';
+              if (is(/推奨|薦め|NPS/)) return '口コミ意向を見たいので、推奨度を段階評価で測る設問を作成';
+              if (is(/購入意向|購入|利用意向/)) return '需要の強さを判断したいので、意向の段階評価設問を作成';
+              if (is(/魅力|魅力度/)) return '第一印象の強さを把握したいので、魅力度の段階評価設問を作成';
+              if (is(/独自性|差別化/)) return '差別化の認識を確認したいので、独自性の段階評価設問を作成';
+              if (is(/認知|知って/)) return '到達状況を把握したいので、認知有無の単一選択設問を作成';
+              if (is(/利用状況|頻度/)) return 'セグメント分けのため、現状把握（利用状況/頻度）の単一選択設問を作成';
+              if (is(/価格|PSM|高い|安い/)) return '価格印象を確認したいので、価格に関する段階評価/選択設問を作成';
+              if (is(/改善|理由|自由記述|ご自由に/)) return '具体策を集めたいので、自由記述で理由/改善案を収集する設問を作成';
+              if (is(/年齢|性別|職業|年収/)) return '分析軸の把握が必要なので、基本属性の単一選択設問を作成';
+              switch (type) {
+                case 'single':
+                  return '判断の明確化が必要なので、単一選択の設問を作成';
+                case 'multiple':
+                  return '重視点を網羅把握したいので、複数選択の設問を作成';
+                case 'scale':
+                  return '強さの度合いを把握したいので、段階評価の設問を作成';
+                case 'text':
+                default:
+                  return '具体的な声を集めたいので、自由記述の設問を作成';
+              }
+            };
+            const toPreview = (q: any, category: string) => {
+              const type = mapType(q?.['形式']);
+              const options = Array.isArray(q?.['選択肢']) ? (q['選択肢'] as any[]).map((c) => c?.label).filter(Boolean) : undefined;
+              const scale = q?.['scale'] && typeof q['scale'] === 'object' ? q['scale'] : undefined;
+              const text = q?.['設問文'] ?? '';
+              const rationale = philosophy[q?.id] ?? buildRationaleFor(text, type);
+              const base: any = { id: q?.id, text, type, category, rationale };
+              if (type === 'scale' && scale) return { ...base, scale };
+              if (type !== 'text' && options?.length) return { ...base, options };
+              return base;
+            };
+            const screening = Array.isArray(p2?.['スクリーニング設問']) ? p2['スクリーニング設問'] : [];
+            const main = Array.isArray(p2?.['本調査設問']) ? p2['本調査設問'] : [];
+            const previewQuestions = [
+              ...screening.map((q: any) => toPreview(q, 'スクリーニング')),
+              ...main.map((q: any) => toPreview(q, '本調査')),
+            ];
+            setPreviewData({
+              title: (title as string) ?? 'アンケート調査',
+              description: (purpose as string) ?? '',
+              category: 'チャット生成',
+              questionCount: previewQuestions.length,
+              audience: (audience as string) ?? '未設定',
+              questions: previewQuestions,
+              purpose: (purpose as string) ?? '',
+              mode: 'main',
+              categoryCounts: undefined,
+            });
+            const aiMsg2: ChatMessage = { id: `a-${Date.now() + 1}`, role: 'assistant', content: '設問案を生成しました。プレビューを開きます。' };
+            setMessages(prev => [...prev, aiMsg2]);
+            setPreviewOpen(true);
+          }
+        } catch {}
+
+        setIsSending(false);
+        setIsTyping(false);
+        setJustSent(true);
+        setTimeout(() => setJustSent(false), 900);
+        return;
+      }
+    } catch (_err) {
+      // ignore and fall back to local heuristics below
+    }
 
     const deriveIntentFromInput = (text: string) => {
       const intent: Partial<ChatCollected> = {};
@@ -463,6 +623,43 @@ export default function SurveyAssistantPage() {
       handleSendMessage();
     }
   };
+
+  // If there is a pending Depth question, interpret the next user message as an answer
+  useEffect(() => {
+    if (!messages.length) return;
+    const last = messages[messages.length - 1];
+    if (last.role !== 'user') return;
+    if (!depthQueue.length || !lastPrompt1) return;
+    // answer current question
+    const [current, ...rest] = depthQueue;
+    const updated = setPrompt1ValueAtPath(lastPrompt1, current.path || `任意項目.${current.keyLabel}`, last.content);
+    setLastPrompt1(updated);
+    setDepthQueue(rest);
+    (async () => {
+      // if more questions, ask next
+      if (rest.length > 0) {
+        const nextQ = rest[0];
+        const text = `${nextQ.keyLabel}：${nextQ.question}${nextQ.candidates?.length ? `\n候補: ${nextQ.candidates.join(' / ')}` : ''}`;
+        setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: text }]);
+        return;
+      }
+      // otherwise all filled -> summary and offer
+      try {
+        const req = updated; // already Prompt1-shaped
+        const optional: any = req?.['任意項目'] ?? {};
+        const required: any = req?.['必須項目'] ?? {};
+        const title = required?.['調査タイトル']?.value ?? required?.['タイトル']?.value;
+        const purpose = required?.['調査目的']?.value;
+        const audience = required?.['調査対象者条件']?.value;
+        const missingOptional = Object.entries(optional)
+          .filter(([, v]: any) => !v || v.source === 'empty' || v.value == null || (typeof v.value === 'string' && v.value.trim() === '') || (Array.isArray(v.value) && v.value.length === 0))
+          .map(([k]) => String(k));
+        setProceedOffer({ title, purpose, audience, missingOptional });
+        setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: '不足項目は下記ですが、この内容でプレビューしますか？\nチャットで補足しますか？' }]);
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   const handleConfirmProceed = () => {
     try {
@@ -841,6 +1038,21 @@ export default function SurveyAssistantPage() {
     }
   }
 
+  function setPrompt1ValueAtPath(original: any, path: string, value: string) {
+    if (!path || !original) return original;
+    const keys = path.split('.');
+    const clone: any = { ...original };
+    let cursor = clone;
+    for (let i = 0; i < keys.length - 1; i++) {
+      const k = keys[i]!;
+      cursor[k] = { ...(cursor[k] ?? {}) };
+      cursor = cursor[k];
+    }
+    const leaf = keys[keys.length - 1]!;
+    cursor[leaf] = { value, source: 'user', confidence: 1 };
+    return clone;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="pt-10 px-6 pb-6 max-w-7xl mx-auto">
@@ -916,6 +1128,81 @@ export default function SurveyAssistantPage() {
                             {s.label}
                           </Button>
                         ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {false && depthFollowUps.length > 0 && (
+                  <div className="flex justify-start">
+                    <div className="bg-background border rounded-2xl px-3 py-2 text-xs text-foreground w-full max-w-[80%]">
+                      <div className="mb-1 text-[11px] text-muted-foreground">不足している情報があります。以下から選ぶか、テキストで追記してください。</div>
+                      {depthFollowUps.map((f) => (
+                        <div key={f.id} className="mb-2 last:mb-0">
+                          <div className="text-[12px] font-medium mb-1">{f.keyLabel}</div>
+                          <div className="text-[12px] text-muted-foreground mb-1">{f.question}</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {f.candidates.map((c, i) => (
+                              <Button key={`${f.id}-${i}`} size="sm" variant="secondary" className="h-7 px-2 text-[11px]" onClick={() => insertPromptToInput(`${f.keyLabel}: ${c}`)}>
+                                {c}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="mt-2 flex gap-2">
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setDepthFollowUps([])}>あとで</Button>
+                        {lastPrompt1 && (
+                          <Button size="sm" className="h-7 px-2 text-[11px]" onClick={async () => {
+                            try {
+                              const res2 = await fetch('/api/assist/prompt2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(lastPrompt1) });
+                              if (res2.ok) {
+                                const p2: any = await res2.json();
+                                // reuse mapping logic by calling sendSuggestion with a no-op? We will just open preview below
+                                const philosophy: Record<string, string> = (p2?.['設問思想'] as any) ?? {};
+                                const mapType = (v: string): 'single' | 'multiple' | 'scale' | 'text' => {
+                                  if (v === '単一選択') return 'single';
+                                  if (v === '複数選択') return 'multiple';
+                                  if (v === '5段階評価') return 'scale';
+                                  return 'text';
+                                };
+                                const toPreview = (q: any, category: string) => {
+                                  const type = mapType(q?.['形式']);
+                                  const options = Array.isArray(q?.['選択肢']) ? (q['選択肢'] as any[]).map((c) => c?.label).filter(Boolean) : undefined;
+                                  const scale = q?.['scale'] && typeof q['scale'] === 'object' ? q['scale'] : undefined;
+                                  const text = q?.['設問文'] ?? '';
+                                  const rationale = philosophy[q?.id] ?? buildRationaleFor(text, type);
+                                  const base: any = { id: q?.id, text, type, category, rationale };
+                                  if (type === 'scale' && scale) return { ...base, scale };
+                                  if (type !== 'text' && options?.length) return { ...base, options };
+                                  return base;
+                                };
+                                const required = lastPrompt1?.['必須項目'] ?? {};
+                                const title = required?.['調査タイトル']?.value ?? required?.['タイトル']?.value;
+                                const purpose = required?.['調査目的']?.value;
+                                const audience = required?.['調査対象者条件']?.value;
+                                const screening = Array.isArray(p2?.['スクリーニング設問']) ? p2['スクリーニング設問'] : [];
+                                const main = Array.isArray(p2?.['本調査設問']) ? p2['本調査設問'] : [];
+                                const previewQuestions = [
+                                  ...screening.map((q: any) => toPreview(q, 'スクリーニング')),
+                                  ...main.map((q: any) => toPreview(q, '本調査')),
+                                ];
+                                setPreviewData({
+                                  title: (title as string) ?? 'アンケート調査',
+                                  description: (purpose as string) ?? '',
+                                  category: 'チャット生成',
+                                  questionCount: previewQuestions.length,
+                                  audience: (audience as string) ?? '未設定',
+                                  questions: previewQuestions,
+                                  purpose: (purpose as string) ?? '',
+                                  mode: 'main',
+                                  categoryCounts: undefined,
+                                });
+                                setPreviewOpen(true);
+                                setDepthFollowUps([]);
+                              }
+                            } catch {}
+                          }}>不足はスキップしてプレビュー</Button>
+                        )}
                       </div>
                     </div>
                   </div>

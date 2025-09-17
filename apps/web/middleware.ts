@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 export function middleware(request: NextRequest) {
+  // Bypass basic auth in development
+  if (process.env.NODE_ENV !== "production") {
+    return NextResponse.next();
+  }
+
   const basicAuth = request.headers.get("authorization");
   const url = request.nextUrl;
 
